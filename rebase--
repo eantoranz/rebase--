@@ -1,0 +1,111 @@
+#!/bin/env python3
+
+# Copyright 2025 Edmundo Carmona Antoranz
+# Released under the terms of GPLv2.0
+
+import argparse
+import pygit2
+import sys
+
+
+def die_with_error(error: str) -> None:
+    sys.stderr.write(f"{error}\n")
+    sys.stderr.flush()
+    sys.exit(1)
+
+
+def merge_trees(
+    commit_tree: pygit2.Tree,
+    orig_trees: list[pygit2.Tree],
+    rebased_trees: list[pygit2.Tree],
+) -> pygit2.Tree:
+    # if all the orig trees and the rebased trees are the same, we take commit_tree as is
+    assert len(orig_trees) == len(rebased_trees)
+    all_matches = True
+    for trees in zip(orig_trees, rebased_trees):
+        if trees[0].id != trees[1].id:
+            all_matches = False
+            break
+    if all_matches:
+        return commit_tree
+    return None
+
+
+def rebase(
+    commit: pygit2.Commit,
+    commits_map: dict[pygit2.Oid, pygit2.Commit],
+    repo: pygit2.Repository,
+    signature: pygit2.Signature,
+) -> pygit2.Commit | None:
+    orig_parents = commit.parents
+    orig_parent_trees = [parent.tree for parent in orig_parents]
+    rebased_parents = [
+        commits_map.get(orig_parent.id, orig_parent) for orig_parent in orig_parents
+    ]
+    rebased_parent_trees = [parent.tree for parent in rebased_parents]
+
+    resulting_tree = merge_trees(commit.tree, orig_parent_trees, rebased_parent_trees)
+    if resulting_tree is None:
+        # could not generate a tree
+        return None
+    rebased_parent_ids = [parent.id for parent in rebased_parents]
+    new_commit = repo.create_commit(
+        None,
+        commit.author,
+        signature,
+        commit.message,
+        resulting_tree.id,
+        rebased_parent_ids,
+    )
+
+    return repo.get(new_commit)
+
+
+parser = argparse.ArgumentParser(description="Simple implementation of rebase")
+
+parser.add_argument("upstream", type=str, help="What to use as the upstream")
+parser.add_argument(
+    "source",
+    nargs="?",
+    default="@",
+    type=str,
+    help="What to rebase. Default: current branch",
+)
+# TODO introduce --onto
+
+args = parser.parse_args()
+
+repo = pygit2.Repository(".")
+signature = pygit2.Signature(
+    repo.config.__getitem__("user.name"),
+    repo.config.__getitem__("user.email"),
+)
+
+
+try:
+    upstream = repo.revparse_single(args.upstream)
+except Exception as e:
+    die_with_error(f"Could not find upstream: {e}")
+
+try:
+    source = repo.revparse_single(args.source if args.source else "HEAD")
+except Exception as e:
+    die_with_error(f"Could not find source: {e}")
+
+merge_base_id = repo.merge_base(source.id, upstream.id)
+if merge_base_id is None:
+    die_with_error("No merge base between the upstream and the source")
+
+rebase_walker = repo.walk(source.id)
+rebase_walker.hide(merge_base_id)
+
+commits_to_rebase = reversed([commit for commit in rebase_walker])
+
+# mappings between original commits and their resulting equivalents
+commits_map = {merge_base_id: upstream}  # @TODO it might be onto when we introducer it
+for commit in commits_to_rebase:
+    new_commit = rebase(commit, commits_map, repo, signature)
+    if new_commit is None:
+        die_with_error(f"Could not rebase commit {commit.id}")
+    commits_map[commit.id] = new_commit
+print(f"Resulting commit: {commits_map[source.id].id}")
