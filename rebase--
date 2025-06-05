@@ -14,21 +14,57 @@ def die_with_error(error: str) -> None:
     sys.exit(1)
 
 
+def get_commit(obj: pygit2.Object) -> pygit2.Commit:
+    current_object = obj
+    while True:
+        if current_object is None:
+            die_with_error(f"Could not get commit from {obj}")
+        if isinstance(current_object, pygit2.Commit):
+            return current_object
+        if isinstance(current_object, pygit2.Tag):
+            current_object = current_object.get_object()
+        else:
+            current_object = None  # force the error
+
+
 def merge_trees(
     commit_tree: pygit2.Tree,
-    orig_trees: list[pygit2.Tree],
-    rebased_trees: list[pygit2.Tree],
-) -> pygit2.Tree:
+    orig_parent_trees: list[pygit2.Tree],
+    rebased_parent_trees: list[pygit2.Tree],
+) -> tuple[bool, pygit2.Tree | None]:
     # if all the orig trees and the rebased trees are the same, we take commit_tree as is
-    assert len(orig_trees) == len(rebased_trees)
+    assert len(orig_parent_trees) == len(rebased_parent_trees)
     all_matches = True
-    for trees in zip(orig_trees, rebased_trees):
-        if trees[0].id != trees[1].id:
+    for orig_parent_tree, rebased_parent_tree in zip(
+        orig_parent_trees, rebased_parent_trees
+    ):
+        if orig_parent_tree == rebased_parent_tree:
+            # also works for None
+            continue
+        if orig_parent_tree is None or rebased_parent_tree is None:
+            # one is set, the other is not
+            all_matches = False
+            break
+        if orig_parent_tree.id != rebased_parent_tree.id:
             all_matches = False
             break
     if all_matches:
-        return commit_tree
-    return None
+        return True, commit_tree
+
+    # if dealing with single-parent commits, there are a few other early exits
+    if len(orig_parent_trees) == 1:
+        orig_parent_tree = orig_parent_trees[0]
+        rebased_parent_tree = rebased_parent_trees[0]
+        if orig_parent_tree.id == commit_tree.id:
+            return True, rebased_parent_tree
+        if rebased_parent_tree.id == commit_tree.id:
+            # delta original_parent_tree..commit_tree is already applied
+            # in history of rebased_parent_tree. (TODO right??? please, verify)
+            return True, rebased_parent_tree
+
+    # not everything in the trees match.... can we solve this puzzle?
+    # TODO we need to consider what the common ancestors look like
+    return False, None
 
 
 def rebase(
@@ -44,8 +80,10 @@ def rebase(
     ]
     rebased_parent_trees = [parent.tree for parent in rebased_parents]
 
-    resulting_tree = merge_trees(commit.tree, orig_parent_trees, rebased_parent_trees)
-    if resulting_tree is None:
+    got_tree, new_tree = merge_trees(
+        commit.tree, orig_parent_trees, rebased_parent_trees
+    )
+    if not got_tree:
         # could not generate a tree
         return None
     rebased_parent_ids = [parent.id for parent in rebased_parents]
@@ -54,7 +92,7 @@ def rebase(
         commit.author,
         signature,
         commit.message,
-        resulting_tree.id,
+        new_tree.id,
         rebased_parent_ids,
     )
 
@@ -63,15 +101,20 @@ def rebase(
 
 parser = argparse.ArgumentParser(description="Simple implementation of rebase")
 
-parser.add_argument("upstream", type=str, help="What to use as the upstream")
+parser.add_argument("upstream", type=str, help="What to use as the upstream.")
 parser.add_argument(
     "source",
     nargs="?",
-    default="@",
+    default=None,
     type=str,
     help="What to rebase. Default: current branch",
 )
-# TODO introduce --onto
+parser.add_argument(
+    "--onto",
+    default=None,
+    type=str,
+    help="Rebase on top of this committish instead of upstream.",
+)
 
 args = parser.parse_args()
 
@@ -83,14 +126,19 @@ signature = pygit2.Signature(
 
 
 try:
-    upstream = repo.revparse_single(args.upstream)
+    upstream = get_commit(repo.revparse_single(args.upstream))
 except Exception as e:
     die_with_error(f"Could not find upstream: {e}")
 
 try:
-    source = repo.revparse_single(args.source if args.source else "HEAD")
+    source = get_commit(repo.revparse_single(args.source if args.source else "HEAD"))
 except Exception as e:
     die_with_error(f"Could not find source: {e}")
+
+try:
+    onto = get_commit(repo.revparse_single(args.onto) if args.onto else upstream)
+except Exception as e:
+    die_with_error(f"Could not find --onto: {e}")
 
 merge_base_id = repo.merge_base(source.id, upstream.id)
 if merge_base_id is None:
@@ -102,7 +150,7 @@ rebase_walker.hide(merge_base_id)
 commits_to_rebase = reversed([commit for commit in rebase_walker])
 
 # mappings between original commits and their resulting equivalents
-commits_map = {merge_base_id: upstream}  # @TODO it might be onto when we introducer it
+commits_map = {merge_base_id: onto}
 for commit in commits_to_rebase:
     new_commit = rebase(commit, commits_map, repo, signature)
     if new_commit is None:
