@@ -147,13 +147,20 @@ if merge_base_id is None:
 rebase_walker = repo.walk(source.id)
 rebase_walker.hide(merge_base_id)
 
-commits_to_rebase = reversed([commit for commit in rebase_walker])
+commits_to_rebase = list(commit for commit in rebase_walker)
+commits_to_rebase.reverse()
 
 # mappings between original commits and their resulting equivalents
 commits_map = {merge_base_id: onto}
+counter = 0
+commits_count = len(commits_to_rebase)
 for commit in commits_to_rebase:
+    counter += 1
+    sys.stdout.write(f"\rRebasing {counter}/{commits_count}")
     new_commit = rebase(commit, commits_map, repo, signature)
     if new_commit is None:
+        print()
         die_with_error(f"Could not rebase commit {commit.id}")
     commits_map[commit.id] = new_commit
+print()
 print(f"Resulting commit: {commits_map[source.id].id}")
