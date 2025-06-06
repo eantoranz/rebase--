@@ -208,9 +208,10 @@ def merge_trees(
                 different_parents.add((original_parent_item, rebased_parent_item))
 
         if not different_parents:
-            tree_builder.insert(
-                path, commit_tree_item.id, get_filemode(commit_tree_item)
-            )
+            if commit_tree_item:
+                tree_builder.insert(
+                    path, commit_tree_item.id, get_filemode(commit_tree_item)
+                )
             continue
 
         # not everything matches
