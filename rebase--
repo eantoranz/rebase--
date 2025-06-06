@@ -304,7 +304,7 @@ def merge_trees(
                 return recursive_result  # no need to change it
 
         # if we are wondering around here, we need to go over the separate items in the trees
-        full_path = ("/".join(dirs) + path) if dirs else path
+        full_path = ("/".join(dirs) + f"/{path}") if dirs else path
         if verbose:
             print()
             sys.stderr.write(f"Failed to merge commit {commit_id}\n")
