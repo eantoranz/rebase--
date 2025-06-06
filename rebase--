@@ -137,6 +137,15 @@ class TreesIterator:
         )
 
 
+def get_filemode(item: pygit2.Object):
+    if isinstance(item, pygit2.Blob):
+        return pygit2.enums.FileMode.BLOB
+    if isinstance(item, pygit2.Tree):
+        return pygit2.enums.FileMode.TREE
+    # TODO add the other types
+    die_with_error(f"Unknown type for object {item}")
+
+
 def merge_trees(
     repo: pygit2.Repository,
     commit_id: pygit2.Oid,
@@ -148,21 +157,22 @@ def merge_trees(
 ) -> tuple[bool, pygit2.Tree | str]:
     # if all the orig trees and the rebased trees are the same, we take commit_tree as is
     assert len(orig_parent_trees) == len(rebased_parent_trees)
-    all_matches = True
+    different_parents: set[tuple[pygit2.Object, pygit2.Object]] = (
+        set()
+    )  # tuple[0] = original, tuple[1] = rebased
     for orig_parent_tree, rebased_parent_tree in zip(
         orig_parent_trees, rebased_parent_trees
     ):
         if orig_parent_tree == rebased_parent_tree:
             # also works for None
             continue
-        if orig_parent_tree is None or rebased_parent_tree is None:
-            # one is set, the other is not
-            all_matches = False
-            break
-        if orig_parent_tree.id != rebased_parent_tree.id:
-            all_matches = False
-            break
-    if all_matches:
+        if (
+            orig_parent_tree is None
+            or rebased_parent_tree is None
+            or orig_parent_tree.id != rebased_parent_tree.id
+        ):
+            different_parents.add((orig_parent_tree, rebased_parent_tree))
+    if not different_parents:
         return True, commit_tree
 
     # if dealing with single-parent commits, there are a few other possibilities using the rebased parent tree
@@ -184,30 +194,30 @@ def merge_trees(
     tree_builder = repo.TreeBuilder()
     while tree_items := trees_iterator.next_tree_items():
         path, commit_tree_item, original_parent_items, rebased_parent_items = tree_items
-        all_matches = True
+        different_parents = set()
         for original_parent_item, rebased_parent_item in zip(
             original_parent_items, rebased_parent_items
         ):
             if original_parent_item == rebased_parent_item:
                 continue
-            if original_parent_item is None or rebased_parent_item is None:
-                all_matches = False
-                break
-            if original_parent_item.id != rebased_parent_item.id:
-                all_matches = False
-                break
-            # it is matching so far
+            if (
+                original_parent_item is None
+                or rebased_parent_item is None
+                or (original_parent_item.id != rebased_parent_item.id)
+            ):
+                different_parents.add((original_parent_item, rebased_parent_item))
 
-        if all_matches:
-            tree_builder.insert(path, commit_tree_item.id, commit_tree_item.filemode)
+        if not different_parents:
+            tree_builder.insert(
+                path, commit_tree_item.id, get_filemode(commit_tree_item)
+            )
             continue
 
         # not everything matches
-        # TODO If only a single parent is different, we can make it work
-        if len(original_parent_items) == 1:
+        if len(different_parents) == 1:
+            different_parents = list(different_parents)
             # Is it still possible to use an early resolution?
-            original_parent_item = original_parent_items[0]
-            rebased_parent_item = rebased_parent_items[0]
+            original_parent_item, rebased_parent_item = list(different_parents)[0]
             item_to_commit = None
             solved = False
 
@@ -251,7 +261,7 @@ def merge_trees(
             if solved:
                 if item_to_commit is not None:
                     tree_builder.insert(
-                        path, item_to_commit.id, item_to_commit.filemode
+                        path, item_to_commit.id, get_filemode(item_to_commit)
                     )
                 continue
 
@@ -282,15 +292,15 @@ def merge_trees(
             del dirs[-1]
             if recursive_result[0]:
                 # we were able to solve it
-                if resursive_result[1] is not None:
+                if recursive_result[1] is not None:
                     tree_builder.insert(
-                        path, resursive_result[1].id, resursive_result[1].filemode
+                        path, recursive_result[1].id, get_filemode(recursive_result[1])
                     )
                     continue
             else:
                 return recursive_result  # no need to change it
 
-        # if we are wondering around here, it did not work
+        # if we are wondering around here, we need to go over the separate items in the trees
         full_path = ("/".join(dirs) + path) if dirs else path
         if verbose:
             print()
@@ -353,7 +363,7 @@ def rebase(
     return repo.get(new_commit)
 
 
-parser = argparse.ArgumentParser(description="Simple implementation of rebase")
+parser = argparse.ArgumentParser(description="Simplified implementation of rebase")
 
 parser.add_argument("upstream", type=str, help="What to use as the upstream.")
 parser.add_argument(
