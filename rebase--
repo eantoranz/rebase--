@@ -142,7 +142,8 @@ def merge_trees(
     commit_tree: pygit2.Tree,
     orig_parent_trees: list[pygit2.Tree],
     rebased_parent_trees: list[pygit2.Tree],
-) -> tuple[bool, pygit2.Tree | None]:
+    dirs: list[str] = [],
+) -> tuple[bool, pygit2.Tree | str]:
     # if all the orig trees and the rebased trees are the same, we take commit_tree as is
     assert len(orig_parent_trees) == len(rebased_parent_trees)
     all_matches = True
@@ -265,9 +266,15 @@ def merge_trees(
             )
         ):
             # we can recurse into it
+            dirs.append(path)
             recursive_result = merge_trees(
-                repo, commit_tree_item, original_parent_items, rebased_parent_items
+                repo,
+                commit_tree_item,
+                original_parent_items,
+                rebased_parent_items,
+                dirs,
             )
+            del dirs[-1]
             if recursive_result[0]:
                 # we were able to solve it
                 if resursive_result[1] is not None:
@@ -275,9 +282,14 @@ def merge_trees(
                         path, resursive_result[1].id, resursive_result[1].filemode
                     )
                     continue
+            else:
+                return recursive_result # no need to change it
 
         # if we are wondering around here, it did not work
-        return False, None
+        return (
+            False,
+            f"We could not merge path {('/'.join(dirs) + path) if dirs else path}",
+        )
 
     # Seems like we had no issues in the trees
     return True, repo.get(tree_builder.write())
@@ -288,7 +300,7 @@ def rebase(
     commit: pygit2.Commit,
     commits_map: dict[pygit2.Oid, pygit2.Commit],
     signature: pygit2.Signature,
-) -> pygit2.Commit | None:
+) -> pygit2.Commit | str:
     orig_parents = commit.parents
     orig_parent_trees = [parent.tree for parent in orig_parents]
     rebased_parents = [
@@ -296,19 +308,19 @@ def rebase(
     ]
     rebased_parent_trees = [parent.tree for parent in rebased_parents]
 
-    got_tree, new_tree = merge_trees(
+    got_tree, result = merge_trees(
         repo, commit.tree, orig_parent_trees, rebased_parent_trees
     )
     if not got_tree:
         # could not generate a tree
-        return None
+        return result
     rebased_parent_ids = [parent.id for parent in rebased_parents]
     new_commit = repo.create_commit(
         None,
         commit.author,
         signature,
         commit.message,
-        new_tree.id,
+        result.id,
         rebased_parent_ids,
     )
 
@@ -373,10 +385,10 @@ commits_count = len(commits_to_rebase)
 for commit in commits_to_rebase:
     counter += 1
     sys.stdout.write(f"\rRebasing {counter}/{commits_count}")
-    new_commit = rebase(repo, commit, commits_map, signature)
-    if new_commit is None:
+    result = rebase(repo, commit, commits_map, signature)
+    if isinstance(result, str):
         print()
-        die_with_error(f"Could not rebase commit {commit.id}")
-    commits_map[commit.id] = new_commit
+        die_with_error(f"Could not rebase commit {commit.id}: {result}")
+    commits_map[commit.id] = result
 print()
 print(f"Resulting commit: {commits_map[source.id].id}")
