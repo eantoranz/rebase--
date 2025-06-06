@@ -115,7 +115,7 @@ class TreesIterator:
             return None
         original_tree_item = (
             self.original_tree_item
-            if self.original_tree_item.name == next_path
+            if self.original_tree_item and self.original_tree_item.name == next_path
             else None
         )
         original_parent_tree_items = list(
@@ -142,6 +142,8 @@ def get_filemode(item: pygit2.Object):
         return pygit2.enums.FileMode.BLOB
     if isinstance(item, pygit2.Tree):
         return pygit2.enums.FileMode.TREE
+    if isinstance(item, pygit2.Commit):
+        return pygit2.enums.FileMode.COMMIT
     # TODO add the other types
     die_with_error(f"Unknown type for object {item}")
 
