@@ -139,9 +139,11 @@ class TreesIterator:
 
 def merge_trees(
     repo: pygit2.Repository,
-    commit_tree: pygit2.Tree,
+    commit_id: pygit2.Oid,
+    commit_tree: pygit2.Tree,  # TODO not necessarily a root tree so maybe a better name would clear it up
     orig_parent_trees: list[pygit2.Tree],
     rebased_parent_trees: list[pygit2.Tree],
+    verbose: bool,
     dirs: list[str] = [],
 ) -> tuple[bool, pygit2.Tree | str]:
     # if all the orig trees and the rebased trees are the same, we take commit_tree as is
@@ -201,6 +203,7 @@ def merge_trees(
             continue
 
         # not everything matches
+        # TODO If only a single parent is different, we can make it work
         if len(original_parent_items) == 1:
             # Is it still possible to use an early resolution?
             original_parent_item = original_parent_items[0]
@@ -269,9 +272,11 @@ def merge_trees(
             dirs.append(path)
             recursive_result = merge_trees(
                 repo,
+                commit_id,
                 commit_tree_item,
                 original_parent_items,
                 rebased_parent_items,
+                verbose,
                 dirs,
             )
             del dirs[-1]
@@ -283,12 +288,27 @@ def merge_trees(
                     )
                     continue
             else:
-                return recursive_result # no need to change it
+                return recursive_result  # no need to change it
 
         # if we are wondering around here, it did not work
+        full_path = ("/".join(dirs) + path) if dirs else path
+        if verbose:
+            print()
+            sys.stderr.write(f"Failed to merge commit {commit_id}\n")
+            sys.stderr.write(f"Current path: {full_path}\n")
+            sys.stderr.write(
+                f"original object: {commit_tree_item.id if commit_tree_item else '-'}\n"
+            )
+            sys.stderr.write(
+                f"original parent objects: {list((parent.id if parent else "-") for parent in original_parent_items)}\n"
+            )
+            sys.stderr.write(
+                f"rebased parent objects: {list((parent.id if parent else "-") for parent in rebased_parent_items)}"
+            )
+            sys.stderr.flush()
         return (
             False,
-            f"We could not merge path {('/'.join(dirs) + path) if dirs else path}",
+            f"We could not merge path {full_path}",
         )
 
     # Seems like we had no issues in the trees
@@ -300,6 +320,7 @@ def rebase(
     commit: pygit2.Commit,
     commits_map: dict[pygit2.Oid, pygit2.Commit],
     signature: pygit2.Signature,
+    verbose: bool,
 ) -> pygit2.Commit | str:
     orig_parents = commit.parents
     orig_parent_trees = [parent.tree for parent in orig_parents]
@@ -309,7 +330,12 @@ def rebase(
     rebased_parent_trees = [parent.tree for parent in rebased_parents]
 
     got_tree, result = merge_trees(
-        repo, commit.tree, orig_parent_trees, rebased_parent_trees
+        repo,
+        commit.id,
+        commit.tree,
+        orig_parent_trees,
+        rebased_parent_trees,
+        verbose=verbose,
     )
     if not got_tree:
         # could not generate a tree
@@ -342,6 +368,12 @@ parser.add_argument(
     default=None,
     type=str,
     help="Rebase on top of this committish instead of upstream.",
+)
+parser.add_argument(
+    "--verbose",
+    action="store_true",
+    default=False,
+    help="Provide more information if it fails",
 )
 
 args = parser.parse_args()
@@ -385,7 +417,7 @@ commits_count = len(commits_to_rebase)
 for commit in commits_to_rebase:
     counter += 1
     sys.stdout.write(f"\rRebasing {counter}/{commits_count}")
-    result = rebase(repo, commit, commits_map, signature)
+    result = rebase(repo, commit, commits_map, signature, args.verbose)
     if isinstance(result, str):
         print()
         die_with_error(f"Could not rebase commit {commit.id}: {result}")
