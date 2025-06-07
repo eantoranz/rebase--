@@ -271,9 +271,14 @@ def merge_blobs(
         result = merge_blobs_3way(
             repo, commit_blob, rebased_parent_blobs[0], original_parent_blobs[0]
         )
-        return result is not None, result
+        if result is not None:
+            return True, result
+    else:
+        # not possible to do a simple 3-way merge... we need to get our hands dirty
+        # WIP
+        pass
 
-    # not possible to do a simple 3-way merge... we need to get our hands dirty
+    # let's report that we could not merge it
 
     fullpath = "/".join(paths)
 
