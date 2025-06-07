@@ -148,14 +148,23 @@ def get_filemode(item: pygit2.Object):
     die_with_error(f"Unknown type for object {item}")
 
 
-def solve_easily(
+def easy_merge(
     commit_item: pygit2.Object | None,
     original_item: pygit2.Object | None,
     rebased_item: pygit2.Object | None,
 ) -> tuple[bool, pygit2.Object | None]:
+
+    if (
+        original_item == rebased_item
+        or original_item is not None
+        and rebased_item is not None
+        and original_item.id == rebased_item.id
+    ):
+        # straight one
+        return True, comit_item
+
     item_to_commit = None
     solved = False
-
     if commit_item is None:
         # parents are different cause we would not be here otherwise
         if original_item is None:
@@ -288,7 +297,7 @@ def merge_trees(
         # if dealing with single "differing" parent commits, there are a few other possibilities using the rebased parent tree
         if len(differing_parents) == 1:
             orig_parent_tree, rebased_parent_tree = list(differing_parents)[0]
-            easy_solution = solve_easily(
+            easy_solution = easy_merge(
                 commit_tree, orig_parent_tree, rebased_parent_tree
             )
             if easy_solution[0]:
@@ -329,7 +338,7 @@ def merge_trees(
             differing_parents = list(differing_parents)
             # Is it still possible to use an easy conflict resolution?
             original_parent_item, rebased_parent_item = list(differing_parents)[0]
-            solved, item_to_commit = solve_easily(
+            solved, item_to_commit = easy_merge(
                 commit_tree_item, original_parent_item, rebased_parent_item
             )
 
