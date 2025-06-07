@@ -170,10 +170,10 @@ def easy_merge(
         if original_item is None:
             # we can use the rebased parent item
             return True, rebased_item
-        else:
-            # there was a deletion of the item
-            # we know that the rebased parent is not empty... can't solve it easily
-            pass
+        if rebased_item is None:
+            # it is already deleted in the rebased tree.. so change is already applied, right?
+            return True, None
+        # If we are here, this is a tree conflict (deleted by them)
     else:
         # commit tree is set
         # we know that original/rebased parents are not the same
@@ -205,6 +205,38 @@ def easy_merge(
     return solved, item_to_commit
 
 
+def merge_blobs_3way(
+    repo: pygit2.Repository,
+    parent1: pygit2.Blob,
+    parent2: pygit2.Blob,
+    ancestor: pygit2.Blob,
+) -> pygit2.Blob | None:
+    # deal with the easy ones first
+    if parent1.id == parent2.id:
+        return parent1
+    if parent1.id == ancestor.id:
+        return parent2.id
+    if parent2.id == ancestor.id:
+        return parent1.id
+
+    # FIXME Ugh... I hate creating trees just for this but I see no support for 3-way merges of blobs in pygit2 so....
+    tree_builder_p1 = repo.TreeBuilder()
+    tree_builder_p1.insert("a", parent1.id, pygit2.enums.FileMode.BLOB)
+
+    tree_builder_p2 = repo.TreeBuilder()
+    tree_builder_p2.insert("a", parent2.id, pygit2.enums.FileMode.BLOB)
+
+    tree_builder_a = repo.TreeBuilder()
+    tree_builder_a.insert("a", ancestor.id, pygit2.enums.FileMode.BLOB)
+
+    merge_result = repo.merge_trees(
+        tree_builder_a.write(), tree_builder_p1.write(), tree_builder_p2.write()
+    )
+    if merge_result.conflicts is None:
+        return repo.get(merge_result["a"].id)
+    return None
+
+
 def merge_blobs(
     repo: pygit2.Repository,
     commit_id: pygit2.Oid,
@@ -214,7 +246,6 @@ def merge_blobs(
     verbose: bool,
     paths: list[str] = [],
 ) -> tuple[bool, pygit2.Tree | str]:
-    # if all the orig trees and the rebased trees are the same, we take commit_tree as is
     assert commit_blob is None or isinstance(commit_blob, pygit2.Blob)
     assert len(original_parent_blobs) == len(rebased_parent_blobs)
     assert all(
@@ -226,11 +257,23 @@ def merge_blobs(
         for parent in rebased_parent_blobs
     )
 
-    # we assume that if we are here, all the pairs of original_parent_blob/rebased_parent_blob are differing
-    # also, the easy single-parent cases where we can easily find a resulting object has already
+    # we assume that if we are here, all the pairs of original_parent_blob/rebased_parent_blob are differing.
+    # Also, the easy single-parent cases where we can easily find a resulting object have already
     # been taken care of. Here we are dealing with the _hard_ merges only.
 
     # TODO the _real_ work will be introduced here... WIP
+    if (
+        len(original_parent_blobs) == 1
+        and commit_blob is not None
+        and original_parent_blobs[0] is not None
+        and rebased_parent_blobs[0] is not None
+    ):
+        result = merge_blobs_3way(
+            repo, commit_blob, rebased_parent_blobs[0], original_parent_blobs[0]
+        )
+        return result is not None, result
+
+    # not possible to do a simple 3-way merge... we need to get our hands dirty
 
     fullpath = "/".join(paths)
 
@@ -262,7 +305,6 @@ def merge_trees(
     verbose: bool,
     paths: list[str] = [],
 ) -> tuple[bool, pygit2.Tree | None | str]:  # None if the result is a "deleted" tree
-    # if all the orig trees and the rebased trees are the same, we take commit_tree as is
     assert commit_tree is None or isinstance(commit_tree, pygit2.Tree)
     assert len(orig_parent_trees) == len(rebased_parent_trees)
     assert all(
@@ -345,7 +387,9 @@ def merge_trees(
             if solved:
                 if item_to_commit is not None:
                     tree_builder.insert(
-                        path, item_to_commit.id, get_filemode(item_to_commit)
+                        path,
+                        item_to_commit.id,
+                        get_filemode(item_to_commit),  # TODO executable?
                     )
                 continue
 
@@ -408,7 +452,9 @@ def merge_trees(
                 # we were able to solve it
                 if recursive_result[1] is not None:
                     tree_builder.insert(
-                        path, recursive_result[1].id, pygit2.enums.FileMode.BLOB
+                        path,
+                        recursive_result[1].id,
+                        pygit2.enums.FileMode.BLOB,  # TODO executable?
                     )
                     continue
             return recursive_result  # no need to change it
