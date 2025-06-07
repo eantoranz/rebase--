@@ -230,11 +230,11 @@ def merge_blobs(
     repo: pygit2.Repository,
     commit_id: pygit2.Oid,
     commit_blob: pygit2.Blob | None,
-    original_parent_blobs: list[pygit2.Tree | None],
-    rebased_parent_blobs: list[pygit2.Tree | None],
+    original_parent_blobs: list[pygit2.Blob | None],
+    rebased_parent_blobs: list[pygit2.Blob | None],
     verbose: bool,
     paths: list[str] = [],
-) -> tuple[bool, pygit2.Tree | str]:
+) -> tuple[bool, pygit2.Blob | str]:
     assert commit_blob is None or isinstance(commit_blob, pygit2.Blob)
     assert len(original_parent_blobs) == len(rebased_parent_blobs)
     assert all(
