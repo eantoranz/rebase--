@@ -13,7 +13,7 @@ It is not intended to become a replacement of `git-rebase`.
 
 # features (intended)
 - rebase history, including merges
-- avoid conflicts **if possible** based on what the commits being rebased did originally
+- avoid conflicts **if possible** based on what the commits being rebased did originally.
 - no interactive mode
 - work without moving the working tree
 

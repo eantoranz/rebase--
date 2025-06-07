@@ -273,6 +273,7 @@ def merge_blobs(
 
     if verbose:
         print()
+        sys.stderr.write("\n")
         sys.stderr.write(f"Failed to merge commit {commit_id}\n")
         sys.stderr.write(f"Current path: {fullpath}\n")
         sys.stderr.write(f"Original blob: {commit_blob.id if commit_blob else '-'}\n")
@@ -457,6 +458,7 @@ def merge_trees(
         full_path = ("/".join(dirs) + f"/{path}") if dirs else path
         if verbose:
             print()
+            sys.stdwrr.write("\n")
             sys.stderr.write(f"Failed to merge commit {commit_id}\n")
             sys.stderr.write(f"Current path: {full_path}\n")
             sys.stderr.write(
@@ -538,17 +540,42 @@ parser.add_argument(
     "--verbose",
     action="store_true",
     default=False,
-    help="Provide more information if it fails",
+    help="Provide more information if it fails.",
+)
+parser.add_argument(
+    "--reset",
+    action="store_true",
+    default=False,
+    help="Move to the resulting commit when done. It would update the reference if a local branch is rebased.",
+)
+parser.add_argument(
+    "--force",
+    "-f",
+    action="store_true",
+    default=False,
+    help="Avoid checks like having a clean working tree before switching. WARNING: Assume it will do a hard reset when finished.",
 )
 
 args = parser.parse_args()
 
 repo = pygit2.Repository(".")
+if (
+    args.reset
+    and not args.force
+    and any(
+        status
+        for status in repo.status().values()
+        if status != pygit2.enums.FileStatus.WT_NEW
+    )
+):
+    die_with_error(
+        "Asked to reset but the working tree is not clean. Clean it up and try again."
+    )
+
 signature = pygit2.Signature(
     repo.config.__getitem__("user.name"),
     repo.config.__getitem__("user.email"),
 )
-
 
 try:
     upstream = get_commit(repo.revparse_single(args.upstream))
@@ -556,7 +583,20 @@ except Exception as e:
     die_with_error(f"Could not find upstream: {e}")
 
 try:
-    source = get_commit(repo.revparse_single(args.source if args.source else "HEAD"))
+    try:
+        source_reference = repo.lookup_reference_dwim(
+            args.source if args.source else "HEAD"
+        )
+        source = source_reference.peel(pygit2.Commit)
+        if source_reference.name.startswith("refs/heads/"):
+            source_local_reference = source_reference
+        else:
+            # not a local reference
+            source_local_reference = None
+    except KeyError:
+        # no reference with that name.... we need to pull the object by id
+        source_local_reference = None
+        source = get_commit(repo.get(args.source))
 except Exception as e:
     die_with_error(f"Could not find source: {e}")
 
@@ -581,11 +621,46 @@ counter = 0
 commits_count = len(commits_to_rebase)
 for commit in commits_to_rebase:
     counter += 1
-    sys.stdout.write(f"\rRebasing {counter}/{commits_count}")
+    sys.stderr.write(f"\rRebasing {counter}/{commits_count}")
     result = rebase(repo, commit, commits_map, signature, args.verbose)
     if isinstance(result, str):
         print()
         die_with_error(f"Could not rebase commit {commit.id}: {result}")
     commits_map[commit.id] = result
+final_commit = commits_map[source.id]
 print()
-print(f"Resulting commit: {commits_map[source.id].id}")
+print("Rebase was successful")
+
+if not args.reset:
+    print("Did not ask to reset so we are not moving around.")
+    print(f"Final rebase commit: {final_commit.id}")
+    if source_local_reference is not None:
+        print(f"Local branch {source_local_reference.shorthand} did not move.")
+    # we are done
+    sys.exit(0)
+
+# user asked to reset
+print("Resetting, as requested")
+if source_local_reference is not None:
+    source_local_reference.set_target(
+        final_commit.id,
+        f"rebase--: Moving local branch {source_local_reference.shorthand} after rebase",
+    )
+
+if repo.head_is_detached or repo.head != source_local_reference:
+    repo.set_head(
+        final_commit.id
+        if source_local_reference is None
+        else source_local_reference.name
+    )
+
+repo.checkout_tree(
+    final_commit,
+    strategy=pygit2.enums.CheckoutStrategy.FORCE,
+)
+if source_local_reference is None:
+    print(f"You are working on {final_commit.id} now")
+else:
+    print(
+        f"The local branch {source_local_reference.shorthand} has been reset to {final_commit.id}"
+    )
