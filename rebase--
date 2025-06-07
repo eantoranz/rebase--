@@ -137,17 +137,6 @@ class TreesIterator:
         )
 
 
-def get_filemode(item: pygit2.Object):
-    if isinstance(item, pygit2.Blob):
-        return pygit2.enums.FileMode.BLOB
-    if isinstance(item, pygit2.Tree):
-        return pygit2.enums.FileMode.TREE
-    if isinstance(item, pygit2.Commit):
-        return pygit2.enums.FileMode.COMMIT
-    # TODO add the other types
-    die_with_error(f"Unknown type for object {item}")
-
-
 def easy_merge(
     commit_item: pygit2.Object | None,
     original_item: pygit2.Object | None,
@@ -221,13 +210,13 @@ def merge_blobs_3way(
 
     # FIXME Ugh... I hate creating trees just for this but I see no support for 3-way merges of blobs in pygit2 so....
     tree_builder_p1 = repo.TreeBuilder()
-    tree_builder_p1.insert("a", parent1.id, pygit2.enums.FileMode.BLOB)
+    tree_builder_p1.insert("a", parent1.id, parent1.filemode)
 
     tree_builder_p2 = repo.TreeBuilder()
-    tree_builder_p2.insert("a", parent2.id, pygit2.enums.FileMode.BLOB)
+    tree_builder_p2.insert("a", parent2.id, parent2.filemode)
 
     tree_builder_a = repo.TreeBuilder()
-    tree_builder_a.insert("a", ancestor.id, pygit2.enums.FileMode.BLOB)
+    tree_builder_a.insert("a", ancestor.id, ancestor.filemode)
 
     merge_result = repo.merge_trees(
         tree_builder_a.write(), tree_builder_p1.write(), tree_builder_p2.write()
@@ -375,7 +364,7 @@ def merge_trees(
         if not differing_parents:
             if commit_tree_item:
                 tree_builder.insert(
-                    path, commit_tree_item.id, get_filemode(commit_tree_item)
+                    path, commit_tree_item.id, commit_tree_item.filemode
                 )
             continue
 
@@ -394,7 +383,7 @@ def merge_trees(
                     tree_builder.insert(
                         path,
                         item_to_commit.id,
-                        get_filemode(item_to_commit),  # TODO executable?
+                        item_to_commit.filemode,
                     )
                 continue
 
@@ -459,7 +448,7 @@ def merge_trees(
                     tree_builder.insert(
                         path,
                         recursive_result[1].id,
-                        pygit2.enums.FileMode.BLOB,  # TODO executable?
+                        recursive_result[1].filemode,
                     )
                     continue
             return recursive_result  # no need to change it
