@@ -37,7 +37,7 @@ if there is a conflict.
 The same way that `--onto` works in `git-rebase`, it provides a different point
 to start piling up rebased commits instead of the tip of the `upstream` provided.
 
-## --for-real/4r
+## --for-real/-4r
 By default, `rebase--` does _not_ move the working tree around. It will run the
 rebase calculation saving objects in the database and will report the final commit
 out of the rebase process. If you want to let `rebase--` checkout to the final commit
@@ -47,6 +47,8 @@ if you are **not** using `--stay`, it will run a hard reset to the final commit 
 ## --detach
 If working using `--for-real/-4r`, you can ask git to switch to the final commit of the rebase
 calculation on a `detached HEAD` without moving the local reference that `HEAD` was pointing to.
+If used with `--stay`, `rebase--` would not update a local reference that is asked to be rebased
+and would only report the final commit of the rebase.
 
 ## --stay
 If you want to rebase a local branch **different from the one you are currently working on**,
