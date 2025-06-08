@@ -47,8 +47,6 @@ if you are **not** using `--stay`, it will run a hard reset to the final commit 
 ## --detach
 If working using `--for-real/-4r`, you can ask git to switch to the final commit of the rebase
 calculation on a `detached HEAD` without moving the local reference that `HEAD` was pointing to.
-If used with `--stay`, `rebase--` would not update a local reference that is asked to be rebased
-and would only report the final commit of the rebase.
 
 ## --stay
 If you want to rebase a local branch **different from the one you are currently working on**,
