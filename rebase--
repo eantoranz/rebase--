@@ -528,7 +528,7 @@ parser.add_argument(
     nargs="?",
     default=None,
     type=str,
-    help="What to rebase. Default: current branch",
+    help="What to rebase. Default: current branch.",
 )
 parser.add_argument(
     "--onto",
@@ -543,7 +543,8 @@ parser.add_argument(
     help="Provide more information if it fails.",
 )
 parser.add_argument(
-    "--reset",
+    "--for-real",
+    "-4r",
     action="store_true",
     default=False,
     help="Move to the resulting commit when done. It would update the reference if a local branch is rebased.",
@@ -560,7 +561,7 @@ args = parser.parse_args()
 
 repo = pygit2.Repository(".")
 if (
-    args.reset
+    args.for_real
     and not args.force
     and any(
         status
@@ -569,7 +570,7 @@ if (
     )
 ):
     die_with_error(
-        "Asked to reset but the working tree is not clean. Clean it up and try again."
+        'Asked to run "for real" but the working tree is not clean. Clean it up and try again or use --force.'
     )
 
 signature = pygit2.Signature(
@@ -631,16 +632,16 @@ final_commit = commits_map[source.id]
 print()
 print("Rebase was successful")
 
-if not args.reset:
-    print("Did not ask to reset so we are not moving around.")
+if not args.for_real:
+    print('Did not ask to run "for real" so we are not moving.')
     print(f"Final rebase commit: {final_commit.id}")
     if source_local_reference is not None:
         print(f"Local branch {source_local_reference.shorthand} did not move.")
     # we are done
     sys.exit(0)
 
-# user asked to reset
-print("Resetting, as requested")
+# user asked to run "for real"
+print('Working "for real", as requested')
 if source_local_reference is not None:
     source_local_reference.set_target(
         final_commit.id,
@@ -659,7 +660,7 @@ repo.checkout_tree(
     strategy=pygit2.enums.CheckoutStrategy.FORCE,
 )
 if source_local_reference is None:
-    print(f"You are working on {final_commit.id} now")
+    print(f"Working on You are working on {final_commit.id} now")
 else:
     print(
         f"The local branch {source_local_reference.shorthand} has been reset to {final_commit.id}"
