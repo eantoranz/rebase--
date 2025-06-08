@@ -14,12 +14,15 @@ It is not intended to become a replacement of `git-rebase`.
 # features
 - rebase history, including merges
 - avoid conflicts **if possible** based on what the commits being rebased did originally.
-- no interactive mode.
 - work without moving the working tree.
 - **Optionally**, move to the final commit of the rebase (with `--for-real/-4r`).
 - **Optionally**, move local references without moving the working tree / `HEAD` (with `--for-real/-4r`
 together with `--stay`).
 - **Optionally**, can switch to a `detached HEAD` (with `--detach`).
+
+# drawbacks
+- no smart best-effort rename detection.
+- no interactive mode. (**It could be a feature!!!** Take your pick.)
 
 # main options
 
