@@ -674,11 +674,10 @@ merge_base_id = repo.merge_base(source.id, upstream.id)
 if merge_base_id is None:
     die_with_error("No merge base between the upstream and the source")
 
-rebase_walker = repo.walk(source.id)
+rebase_walker = repo.walk(source.id, pygit2.enums.SortMode.TOPOLOGICAL | pygit2.enums.SortMode.REVERSE)
 rebase_walker.hide(merge_base_id)
 
-commits_to_rebase = list(commit for commit in rebase_walker)
-commits_to_rebase.reverse()
+commits_to_rebase = list(rebase_walker)
 
 signature = pygit2.Signature(
     repo.config.__getitem__("user.name"),
