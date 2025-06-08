@@ -703,7 +703,9 @@ merge_base_id = repo.merge_base(source.id, upstream.id)
 if merge_base_id is None:
     die_with_error("No merge base between the upstream and the source")
 
-rebase_walker = repo.walk(source.id, pygit2.enums.SortMode.TOPOLOGICAL | pygit2.enums.SortMode.REVERSE)
+rebase_walker = repo.walk(
+    source.id, pygit2.enums.SortMode.TOPOLOGICAL | pygit2.enums.SortMode.REVERSE
+)
 rebase_walker.hide(merge_base_id)
 
 commits_to_rebase = list(rebase_walker)
@@ -766,7 +768,7 @@ if not (args.for_real or args.detach) or args.stay:
     if (
         args.stay and args.for_real
     ):  # we only adjust the local reference if running _for real_
-        if source_local_reference is not None:
+        if source_local_reference is not None and not args.detach:
             # we are moving the source_local_reference only
             source_local_reference.set_target(final_commit.id)
             print(
