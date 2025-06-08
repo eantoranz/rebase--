@@ -734,19 +734,35 @@ for commit in commits_to_rebase:
     result = rebase(repo, commit, commits_map, signature, conflicts, args.verbose)
     if conflicts:
         print()
-        print(f"The following paths had conflicts rebasing {commit.id}")
+        print(f"There was a conflict rebasing commit {commit.id}")
+        if args.verbose:
+            print("Using the following parents for the commit (original => rebased)")
+            for parent in commit.parents:
+                rebased_parent = commits_map[parent.id]
+                sys.stdout.write(f"\t{parent.id} => {rebased_parent.id}")
+                if parent == rebased_parent:
+                    sys.stdout.write(" (no change)")
+                print()
+            print()
+
+        print(f"The following paths had conflicts")
         for conflict in conflicts:
             print(f"\t{conflict[0]}")
             if args.verbose:
                 print(
                     f"\t\tObject being rebased: {conflict[1].id if conflict[1] else '-'}"
                 )
-                print(
-                    f"\t\tOriginal Parents: {list((parent.id if parent else '-') for parent in conflict[2])}"
-                )
-                print(
-                    f"\t\tRebased Parents: {list((parent.id if parent else '-') for parent in conflict[3])}"
-                )
+                print("\t\tParent objects (original => rebased)")
+                for original_parent, rebased_parent in zip(conflict[2], conflict[3]):
+                    sys.stdout.write("\t\t\t")
+                    sys.stdout.write(
+                        str(original_parent.id) if original_parent else "-"
+                    )
+                    sys.stdout.write(" => ")
+                    sys.stdout.write(str(rebased_parent.id) if rebased_parent else "-")
+                    if original_parent == rebased_parent:
+                        sys.stdout.write(" (no change)")
+                    print()
         die_with_error(f"Aborting rebase due to conflicts")
     commits_map[commit.id] = result
 final_commit = commits_map[source.id]

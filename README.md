@@ -28,7 +28,7 @@ together with `--stay`).
 - no _smart/best-effort_ rename detection.
 - no interactive mode. (**It could be a feature!!!** Take your pick).
 - it does not allow (currently) to start working on the updated working tree
-if there is a conflict.
+in the middle of the rebase if there is a conflict.
 
 
 # main options
