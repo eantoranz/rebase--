@@ -492,7 +492,6 @@ def merge_trees(
         )
         continue
 
-    # Seems like we had no issues in the trees
     if len(tree_builder):
         return repo.get(tree_builder.write())
     return None
