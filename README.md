@@ -16,8 +16,10 @@ It is not intended to become a replacement of `git-rebase`.
 - avoid conflicts **if possible** based on what the commits being rebased did originally.
 - no interactive mode.
 - work without moving the working tree.
-- **Optionally** Move to the final commit of the rebase.
-- can move local references without moving the working tree / `HEAD`.
+- **Optionally**, move to the final commit of the rebase (with `--for-real/-4r`).
+- **Optionally**, move local references without moving the working tree / `HEAD` (with `--for-real/-4r`
+together with `--stay`).
+- **Optionally**, can switch to a `detached HEAD` (with `--detach`).
 
 # main options
 
@@ -31,6 +33,10 @@ rebase calculation saving objects in the database and will report the final comm
 out of the rebase process. If you want to let `rebase--` checkout to the final commit
 (and adjust the reference if using a local branch), this option will do it. Consider that
 if you are **not** using `--stay`, it will run a hard reset to the final commit of the rebase.
+
+## --detach
+If working using `--for-real/-4r`, you can ask git to switch to the final commit of the rebase
+calculation on a `detached HEAD` without moving the local reference that `HEAD` was pointing to.
 
 ## --stay
 If you want to rebase a local branch **different from the one you are currently working on**,

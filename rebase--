@@ -562,6 +562,13 @@ parser.add_argument(
     "It refuses to work if the local branch asked to rebased is the current branch.",
 )
 parser.add_argument(
+    "--detach",
+    action="store_true",
+    default=False,
+    help="Start working on the final commit of the rebase calculation on detached HEAD without moving a local referece."
+    "It assumes that you are using --for-real/-4r.",
+)
+parser.add_argument(
     "--force",
     "-f",
     action="store_true",
@@ -578,9 +585,13 @@ repo = pygit2.Repository(".")
 # SANITY CHECKS INVOLVING THE OPTIONS THEMSELVES AND THE REPO/WORKING TREE
 ##########################################################################
 
+# no point in using --detach with --stay
+if args.detach and args.stay:
+    die_with_error("Cannot use --detach together with --stay")
+
 # it we are moving aroung, the working tree has to be clean
 if (
-    args.for_real
+    (args.for_real or args.detach)
     and not args.stay
     and not args.force
     and any(
@@ -589,6 +600,10 @@ if (
         if status != pygit2.enums.FileStatus.WT_NEW
     )
 ):
+    if args.detach:
+        die_with_error(
+            "Asked to run detached but the working tree is not clean. Clean it up and try again or use --force."
+        )
     die_with_error(
         'Asked to run "for real" but the working tree is not clean. Clean it up and try again or use --force.'
     )
@@ -695,7 +710,7 @@ print("Rebase was successful")
 # WRAPPING UP
 #############
 
-if not args.for_real or args.stay:
+if not (args.for_real or args.detach) or args.stay:
     # we are not moving the working tree
     print("We are not moving the working tree.")
     if (
@@ -703,10 +718,10 @@ if not args.for_real or args.stay:
     ):  # we only adjust the local reference if running _for real_
         if source_local_reference is not None:
             # we are moving the source_local_reference only
+            source_local_reference.set_target(final_commit.id)
             print(
                 f"\t{source_local_reference.shorthand}:  {source_local_reference.peel(pygit2.Commit).id} => {final_commit.id}"
             )
-            source_local_reference.set_target(final_commit.id)
             sys.exit(0)
     print(f"Final rebase commit: {final_commit.id}")
     if source_local_reference is not None:
@@ -721,16 +736,17 @@ if not args.for_real or args.stay:
 
 # user asked to run "for real"
 print("Moving the working tree, as requested")
-if source_local_reference is not None:
+if source_local_reference is not None and not args.detach:
+    # we need to update the local reference
     source_local_reference.set_target(
         final_commit.id,
         f"rebase--: Moving local branch {source_local_reference.shorthand} after rebase",
     )
 
-if repo.head_is_detached or repo.head != source_local_reference:
+if args.detach or repo.head_is_detached or repo.head != source_local_reference:
     repo.set_head(
         final_commit.id
-        if source_local_reference is None
+        if args.detach or source_local_reference is None
         else source_local_reference.name
     )
 
@@ -738,8 +754,8 @@ repo.checkout_tree(
     final_commit,
     strategy=pygit2.enums.CheckoutStrategy.FORCE,
 )
-if source_local_reference is None:
-    print(f"Working on You are working on {final_commit.id} now")
+if args.detach or source_local_reference is None:
+    print(f"You are working on {final_commit.id} now")
 else:
     print(
         f"The local branch {source_local_reference.shorthand} has been reset to {final_commit.id}"
