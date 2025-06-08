@@ -520,6 +520,10 @@ def rebase(
     return repo.get(new_commit)
 
 
+########################
+# STARTING THE MAIN PART
+########################
+
 parser = argparse.ArgumentParser(description="Simplified implementation of rebase")
 
 parser.add_argument("upstream", type=str, help="What to use as the upstream.")
@@ -550,6 +554,14 @@ parser.add_argument(
     help="Move to the resulting commit when done. It would update the reference if a local branch is rebased.",
 )
 parser.add_argument(
+    "--stay",
+    action="store_true",
+    default=False,
+    help='When running "for real", move the local reference _but_ do not move the working tree to the final commit of the rebase. '
+    "This is useful to move local branches without moving the working tree around. "
+    "It refuses to work if the local branch asked to rebased is the current branch.",
+)
+parser.add_argument(
     "--force",
     "-f",
     action="store_true",
@@ -560,8 +572,16 @@ parser.add_argument(
 args = parser.parse_args()
 
 repo = pygit2.Repository(".")
+
+
+##########################################################################
+# SANITY CHECKS INVOLVING THE OPTIONS THEMSELVES AND THE REPO/WORKING TREE
+##########################################################################
+
+# it we are moving aroung, the working tree has to be clean
 if (
     args.for_real
+    and not args.stay
     and not args.force
     and any(
         status
@@ -573,10 +593,14 @@ if (
         'Asked to run "for real" but the working tree is not clean. Clean it up and try again or use --force.'
     )
 
-signature = pygit2.Signature(
-    repo.config.__getitem__("user.name"),
-    repo.config.__getitem__("user.email"),
-)
+#################################################################################
+# END OF SANITY CHECKS INVOLVING THE OPTIONS THEMSELVES AND THE REPO/WORKING TREE
+#################################################################################
+
+
+##############################
+# PARSING UPSTREAM/SOURCE/ONTO
+##############################
 
 try:
     upstream = get_commit(repo.revparse_single(args.upstream))
@@ -606,6 +630,31 @@ try:
 except Exception as e:
     die_with_error(f"Could not find --onto: {e}")
 
+#####################################
+# END OF PARSING UPSTREAM/SOURCE/ONTO
+#####################################
+
+
+###########################################################################
+# SANITY CHECKS INVOLVING OPTIONS AGAINST THE SELECTED UPSTREAM/SOURCE/ONTO
+###########################################################################
+
+# asking to stay and running \"for real", the source local reference must not be the local branch
+if args.stay and args.for_real:
+    if repo.head == source_local_reference:
+        die_with_error(
+            'Cannot run "for real" and "stay" if asking to rebase the branch that is currently checked out.'
+        )
+
+##################################################################################
+# END OF SANITY CHECKS INVOLVING OPTIONS AGAINST THE SELECTED UPSTREAM/SOURCE/ONTO
+##################################################################################
+
+
+################
+# RUNNING REBASE
+################
+
 merge_base_id = repo.merge_base(source.id, upstream.id)
 if merge_base_id is None:
     die_with_error("No merge base between the upstream and the source")
@@ -615,6 +664,11 @@ rebase_walker.hide(merge_base_id)
 
 commits_to_rebase = list(commit for commit in rebase_walker)
 commits_to_rebase.reverse()
+
+signature = pygit2.Signature(
+    repo.config.__getitem__("user.name"),
+    repo.config.__getitem__("user.email"),
+)
 
 # mappings between original commits and their resulting equivalents
 commits_map = {merge_base_id: onto}
@@ -632,16 +686,41 @@ final_commit = commits_map[source.id]
 print()
 print("Rebase was successful")
 
-if not args.for_real:
-    print('Did not ask to run "for real" so we are not moving.')
+#################
+# REBASE FINISHED
+#################
+
+
+#############
+# WRAPPING UP
+#############
+
+if not args.for_real or args.stay:
+    # we are not moving the working tree
+    print("We are not moving the working tree.")
+    if (
+        args.stay and args.for_real
+    ):  # we only adjust the local reference if running _for real_
+        if source_local_reference is not None:
+            # we are moving the source_local_reference only
+            print(
+                f"\t{source_local_reference.shorthand}:  {source_local_reference.peel(pygit2.Commit).id} => {final_commit.id}"
+            )
+            source_local_reference.set_target(final_commit.id)
+            sys.exit(0)
     print(f"Final rebase commit: {final_commit.id}")
     if source_local_reference is not None:
         print(f"Local branch {source_local_reference.shorthand} did not move.")
     # we are done
     sys.exit(0)
 
+
+#####################################
+# MOVING THE WORKING TREE / REFERENCE
+#####################################
+
 # user asked to run "for real"
-print('Working "for real", as requested')
+print("Moving the working tree, as requested")
 if source_local_reference is not None:
     source_local_reference.set_target(
         final_commit.id,
