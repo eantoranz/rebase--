@@ -196,29 +196,30 @@ def easy_merge(
 
 def merge_blobs_3way(
     repo: pygit2.Repository,
-    ancestor: pygit2.Blob,
-    parent1: pygit2.Blob,
-    parent2: pygit2.Blob,
+    ancestor: tuple[pygit2.Oid, pygit2.enums.FileMode] | None,
+    parent1: tuple[pygit2.Oid, pygit2.enums.FileMode] | None,
+    parent2: tuple[pygit2.Oid, pygit2.enums.FileMode] | None,
 ) -> (
-    tuple[pygit2.Blob, int] | pygit2.Index
+    tuple[pygit2.Oid, pygit2.enums.FileMode] | pygit2.Index
 ):  # returning the index means there was a conflict, tuple[Blob, filemode]
     # deal with the easy ones first
-    if parent1.id == parent2.id:
-        return [parent1, parent1.filemode]
-    if parent1.id == ancestor.id:
-        return [parent2, parent2.filemode]
-    if parent2.id == ancestor.id:
-        return [parent1, parent1.filemode]
+    if parent1 == parent2 or parent2 == ancestor:
+        return parent1
+    if parent1 == ancestor:
+        return parent2
 
     # FIXME Ugh... I hate creating trees just for this but I see no support for 3-way merges of blobs in pygit2 so....
     tree_builder_p1 = repo.TreeBuilder()
-    tree_builder_p1.insert("a", parent1.id, parent1.filemode)
+    if parent1:
+        tree_builder_p1.insert("a", parent1[0], parent1[1])
 
     tree_builder_p2 = repo.TreeBuilder()
-    tree_builder_p2.insert("a", parent2.id, parent2.filemode)
+    if parent2:
+        tree_builder_p2.insert("a", parent2[0], parent2[1])
 
     tree_builder_a = repo.TreeBuilder()
-    tree_builder_a.insert("a", ancestor.id, ancestor.filemode)
+    if ancestor:
+        tree_builder_a.insert("a", ancestor[0], ancestor[1])
 
     merge_result = repo.merge_trees(
         tree_builder_a.write(), tree_builder_p1.write(), tree_builder_p2.write()
@@ -226,11 +227,13 @@ def merge_blobs_3way(
 
     if merge_result.conflicts:
         return merge_result
+
     result_index_item = merge_result["a"]
-    result_blob = repo.get(result_index_item.id)
+    if result_index_item is None:
+        return None
 
     # TODO Try to get the value of the mode in the resulting blob so that we do not have to deal with it separately
-    return [result_blob, result_index_item.mode]
+    return result_index_item.id, result_index_item.mode
 
 
 def merge_blobs(
@@ -241,7 +244,7 @@ def merge_blobs(
     verbose: bool,
     paths: list[str] = [],
 ) -> (
-    tuple[pygit2.Blob, int] | None | bool
+    tuple[pygit2.Oid, int] | None | bool
 ):  # None means a deleted Blob, False means there was a conflict, tuple[Blob, filemode]
     assert commit_blob is None or isinstance(commit_blob, pygit2.Blob)
     assert len(original_parent_blobs) == len(rebased_parent_blobs)
@@ -258,20 +261,25 @@ def merge_blobs(
     # Also, the easy single-parent cases where we can easily find a resulting object have already
     # been taken care of. Here we are dealing with the _hard_ merges only.
 
-    if (
-        len(original_parent_blobs) == 1
-        and commit_blob is not None
-        and original_parent_blobs[0] is not None
-        and rebased_parent_blobs[0] is not None
-    ):
+    if len(original_parent_blobs) == 1:
         result = merge_blobs_3way(
             repo,
-            original_parent_blobs[0],
-            commit_blob,
-            rebased_parent_blobs[0],
+            (
+                (original_parent_blobs[0].id, original_parent_blobs[0].filemode)
+                if original_parent_blobs[0]
+                else None
+            ),
+            (commit_blob.id, commit_blob.filemode) if commit_blob else None,
+            (
+                (rebased_parent_blobs[0].id, rebased_parent_blobs[0].filemode)
+                if rebased_parent_blobs[0]
+                else None
+            ),
         )
         if result is None or isinstance(result, tuple):
             return result
+        # if there is a conflict this way, it is not possible to solve it differently
+        return False
 
     if (
         commit_blob is not None
@@ -279,7 +287,7 @@ def merge_blobs(
         and all(parent is not None for parent in rebased_parent_blobs)
     ):
         # dealing with a multi-parent conflict
-        result_blob = commit_blob
+        result_blob = (commit_blob.id, commit_blob.filemode)
         for original_parent_blob, rebased_parent_blob in zip(
             original_parent_blobs, rebased_parent_blobs
         ):
@@ -291,17 +299,20 @@ def merge_blobs(
                 result_blob = None
                 break
             merge_result = merge_blobs_3way(
-                repo, original_parent_blob, result_blob, rebased_parent_blob
+                repo,
+                (original_parent_blob.id, original_parent_blob.filemode),
+                result_blob,
+                (rebased_parent_blob.id, rebased_parent_blob.filemode),
             )
             if isinstance(merge_result, pygit2.Index):
                 # there was a conflict, sorry but we can't continue
                 # and we do not have a resolution yet
                 result_blob = None
                 break
-            result_blob = merge_result[0]  # take the blob as it is right now
+            result_blob = merge_result  # take the blob as it is right now
         if result_blob:
             # we have a successful merge
-            return result_blob, commit_blob.filemode
+            return result_blob
 
     # for the time being, we will just say there was a conflict
     return False
@@ -328,7 +339,7 @@ def merge_trees(
     verbose: bool,
     paths: list[str] = [],
 ) -> (
-    pygit2.Tree | None | bool
+    pygit2.Oid | None | bool
 ):  # None if the result is an empty/deleted tree, False if we have a tree conflict
     assert commit_tree is None or isinstance(commit_tree, pygit2.Tree)
     assert len(orig_parent_trees) == len(rebased_parent_trees)
@@ -359,7 +370,7 @@ def merge_trees(
                 differing_parents.add((orig_parent_tree, rebased_parent_tree))
         if not differing_parents:
             # we can take the original tree as a whole
-            return commit_tree
+            return commit_tree.id
 
         # if dealing with single "differing" parent commits, there are a few other possibilities using the rebased parent tree
         if len(differing_parents) == 1:
@@ -369,7 +380,7 @@ def merge_trees(
             )
             if easy_solution[0]:
                 # it was solved
-                return easy_solution[1]
+                return easy_solution[1].id
 
     # not everything in the trees match.... can we solve this puzzle?
     # We need to walk over the items in the trees, both sets of parents and commit_tree.
@@ -436,7 +447,7 @@ def merge_trees(
             recursive_result = merge_trees(
                 repo,
                 commit_id,
-                commit_tree_item,
+                commit_tree_item.id,
                 original_differing_parent_items,
                 rebased_differing_parent_items,
                 conflicts,
@@ -496,7 +507,7 @@ def merge_trees(
                 if blob_result is not None:
                     tree_builder.insert(
                         path,
-                        blob_result[0].id,
+                        blob_result[0],
                         blob_result[1],
                     )
             else:
@@ -561,7 +572,7 @@ def rebase(
 
     if result is None:
         # is there a constant for an empty tree?
-        result = repo.get(pygit2.TreeBuilder.write())
+        result = repo.get(repo.TreeBuilder().write())
 
     rebased_parent_ids = [parent.id for parent in rebased_parents]
     new_commit = repo.create_commit(
