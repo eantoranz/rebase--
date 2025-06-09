@@ -662,10 +662,10 @@ try:
         else:
             # not a local reference
             source_local_reference = None
-    except KeyError:
-        # no reference with that name.... we need to pull the object by id
+    except Exception as e:
+        # it might still be possible to get it from revparse_single
         source_local_reference = None
-        source = get_commit(repo.get(args.source))
+        source = get_commit(repo.revparse_single(args.source))
 except Exception as e:
     die_with_error(f"Could not find source: {e}")
 
