@@ -580,7 +580,7 @@ def rebase(
         commit.author,
         signature,
         commit.message,
-        result.id,
+        result,
         rebased_parent_ids,
     )
 
