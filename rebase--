@@ -447,7 +447,7 @@ def merge_trees(
             recursive_result = merge_trees(
                 repo,
                 commit_id,
-                commit_tree_item.id,
+                commit_tree_item,
                 original_differing_parent_items,
                 rebased_differing_parent_items,
                 conflicts,
@@ -466,7 +466,7 @@ def merge_trees(
             if recursive_result:
                 # a non-empty tree
                 tree_builder.insert(
-                    path, recursive_result.id, pygit2.enums.FileMode.TREE
+                    path, recursive_result, pygit2.enums.FileMode.TREE
                 )
             else:
                 # it's a conflict
@@ -531,7 +531,7 @@ def merge_trees(
         continue
 
     if len(tree_builder):
-        return repo.get(tree_builder.write())
+        return tree_builder.write()
     return None
 
 
