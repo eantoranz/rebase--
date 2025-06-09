@@ -228,6 +228,8 @@ def merge_blobs_3way(
         return merge_result
     result_index_item = merge_result["a"]
     result_blob = repo.get(result_index_item.id)
+
+    # TODO Try to get the value of the mode in the resulting blob so that we do not have to deal with it separately
     return [result_blob, result_index_item.mode]
 
 
@@ -271,10 +273,35 @@ def merge_blobs(
         if result is None or isinstance(result, tuple):
             return result
 
-    # TODO
-    # It _should_ be possible to make comparissons of the pairs of ancestors (original vs rebased)
-    # and tried to fit in those differences in the original blob.... if we are lucky
-    # they would all fit in and we would be able to provide a successful merge.
+    if (
+        commit_blob is not None
+        and all(parent is not None for parent in original_parent_blobs)
+        and all(parent is not None for parent in rebased_parent_blobs)
+    ):
+        # dealing with a multi-parent conflict
+        result_blob = commit_blob
+        for original_parent_blob, rebased_parent_blob in zip(
+            original_parent_blobs, rebased_parent_blobs
+        ):
+            # we do not want to have to deal with filemode changes at the moment
+            if (
+                original_parent_blob.filemode != commit_blob.filemode
+                or rebased_parent_blob.filemode != commit_blob.filemode
+            ):
+                result_blob = None
+                break
+            merge_result = merge_blobs_3way(
+                repo, original_parent_blob, result_blob, rebased_parent_blob
+            )
+            if isinstance(merge_result, pygit2.Index):
+                # there was a conflict, sorry but we can't continue
+                # and we do not have a resolution yet
+                result_blob = None
+                break
+            result_blob = merge_result[0]  # take the blob as it is right now
+        if result_blob:
+            # we have a successful merge
+            return result_blob, commit_blob.filemode
 
     # for the time being, we will just say there was a conflict
     return False
@@ -766,6 +793,7 @@ for commit in commits_to_rebase:
         die_with_error(f"Aborting rebase due to conflicts")
     commits_map[commit.id] = result
 final_commit = commits_map[source.id]
+
 print()
 print("Rebase was successful")
 
@@ -793,7 +821,7 @@ if not (args.for_real or args.detach) or args.stay:
             sys.exit(0)
     print(f"Final rebase commit: {final_commit.id}")
     if source_local_reference is not None:
-        print(f"Local branch {source_local_reference.shorthand} did not move.")
+        print(f"Local branch '{source_local_reference.shorthand}' did not move.")
     # we are done
     sys.exit(0)
 
@@ -808,7 +836,7 @@ if source_local_reference is not None and not args.detach:
     # we need to update the local reference
     source_local_reference.set_target(
         final_commit.id,
-        f"rebase--: Moving local branch {source_local_reference.shorthand} after rebase",
+        f"rebase--: Moving local branch '{source_local_reference.shorthand}' after rebase",
     )
 
 if args.detach or repo.head_is_detached or repo.head != source_local_reference:
@@ -826,5 +854,5 @@ if args.detach or source_local_reference is None:
     print(f"You are working on {final_commit.id} now")
 else:
     print(
-        f"The local branch {source_local_reference.shorthand} has been reset to {final_commit.id}"
+        f"The local branch '{source_local_reference.shorthand}' has been reset to {final_commit.id}"
     )
