@@ -465,9 +465,7 @@ def merge_trees(
             # a non-empty real tree or a conflict
             if recursive_result:
                 # a non-empty tree
-                tree_builder.insert(
-                    path, recursive_result, pygit2.enums.FileMode.TREE
-                )
+                tree_builder.insert(path, recursive_result, pygit2.enums.FileMode.TREE)
             else:
                 # it's a conflict
                 conflicts.append(
@@ -572,7 +570,7 @@ def rebase(
 
     if result is None:
         # is there a constant for an empty tree?
-        result = repo.get(repo.TreeBuilder().write())
+        result = repo.TreeBuilder().write()
 
     rebased_parent_ids = [parent.id for parent in rebased_parents]
     new_commit = repo.create_commit(
