@@ -5,6 +5,7 @@
 
 import argparse
 import pygit2
+import typing
 import sys
 
 
@@ -67,7 +68,7 @@ class TreesIterator:
             for parent_tree_iterator in self.rebased_parent_iterators
         )
 
-    def _get_next_path(self) -> str | None:
+    def _get_next_path(self) -> typing.Union[str, None]:
         # Will return None if there are no more paths
         next_path = None
         items = list()
@@ -100,15 +101,15 @@ class TreesIterator:
 
     def next_tree_items(
         self,
-    ) -> (
+    ) -> typing.Union[
         tuple[
             str,
-            pygit2.Object | None,
-            list[pygit2.Object | None],
-            list[pygit2.Object | None],
-        ]
-        | None
-    ):
+            typing.Union[pygit2.Object, None],
+            list[typing.Union[pygit2.Object, None]],
+            list[typing.Union[pygit2.Object, None]],
+        ],
+        None,
+    ]:
         next_path = self._get_next_path()
         if next_path is None:
             # we are finished
@@ -138,10 +139,10 @@ class TreesIterator:
 
 
 def easy_merge(
-    commit_item: pygit2.Object | None,
-    original_item: pygit2.Object | None,
-    rebased_item: pygit2.Object | None,
-) -> tuple[bool, pygit2.Object | None]:
+    commit_item: typing.Union[pygit2.Object, None],
+    original_item: typing.Union[pygit2.Object, None],
+    rebased_item: typing.Union[pygit2.Object, None],
+) -> tuple[bool, typing.Union[pygit2.Object, None]]:
 
     if (
         original_item == rebased_item
@@ -196,12 +197,12 @@ def easy_merge(
 
 def merge_blobs_3way(
     repo: pygit2.Repository,
-    ancestor: tuple[pygit2.Oid, pygit2.enums.FileMode] | None,
-    parent1: tuple[pygit2.Oid, pygit2.enums.FileMode] | None,
-    parent2: tuple[pygit2.Oid, pygit2.enums.FileMode] | None,
-) -> (
-    tuple[pygit2.Oid, pygit2.enums.FileMode] | pygit2.Index
-):  # returning the index means there was a conflict, tuple[Blob, filemode]
+    ancestor: typing.Union[tuple[pygit2.Oid, pygit2.enums.FileMode], None],
+    parent1: typing.Union[tuple[pygit2.Oid, pygit2.enums.FileMode], None],
+    parent2: typing.Union[tuple[pygit2.Oid, pygit2.enums.FileMode], None],
+) -> typing.Union[
+    tuple[pygit2.Oid, pygit2.enums.FileMode], pygit2.Index
+]:  # returning the index means there was a conflict, tuple[Blob, filemode]
     # deal with the easy ones first
     if parent1 == parent2 or parent2 == ancestor:
         return parent1
@@ -238,14 +239,14 @@ def merge_blobs_3way(
 
 def merge_blobs(
     repo: pygit2.Repository,
-    commit_blob: pygit2.Blob | None,
-    original_parent_blobs: list[pygit2.Blob | None],
-    rebased_parent_blobs: list[pygit2.Blob | None],
+    commit_blob: typing.Union[pygit2.Blob, None],
+    original_parent_blobs: list[typing.Union[pygit2.Blob, None]],
+    rebased_parent_blobs: list[typing.Union[pygit2.Blob, None]],
     verbose: bool,
     paths: list[str] = [],
-) -> (
-    tuple[pygit2.Oid, int] | None | bool
-):  # None means a deleted Blob, False means there was a conflict, tuple[Blob, filemode]
+) -> typing.Union[
+    tuple[pygit2.Oid, int], None, bool
+]:  # None means a deleted Blob, False means there was a conflict, tuple[Blob, filemode]
     assert commit_blob is None or isinstance(commit_blob, pygit2.Blob)
     assert len(original_parent_blobs) == len(rebased_parent_blobs)
     assert all(
@@ -323,24 +324,24 @@ def merge_blobs(
 def merge_trees(
     repo: pygit2.Repository,
     commit_id: pygit2.Oid,
-    commit_tree: (
-        pygit2.Tree | None
-    ),  # TODO not necessarily a root tree so maybe a better name would clear it up
-    orig_parent_trees: list[pygit2.Tree | None],
-    rebased_parent_trees: list[pygit2.Tree | None],
+    commit_tree: typing.Union[
+        pygit2.Tree, None
+    ],  # TODO not necessarily a root tree so maybe a better name would clear it up
+    orig_parent_trees: list[typing.Union[pygit2.Tree, None]],
+    rebased_parent_trees: list[typing.Union[pygit2.Tree, None]],
     conflicts: list[
         tuple[
             str,
-            pygit2.Object | None,
-            list[pygit2.Object | None],
-            list[pygit2.Object | None],
+            typing.Union[pygit2.Object, None],
+            list[typing.Union[pygit2.Object, None]],
+            list[typing.Union[pygit2.Object, None]],
         ]
     ],
     verbose: bool,
     paths: list[str] = [],
-) -> (
-    pygit2.Oid | None | bool
-):  # None if the result is an empty/deleted tree, False if we have a tree conflict
+) -> typing.Union[
+    pygit2.Oid, None, bool
+]:  # None if the result is an empty/deleted tree, False if we have a tree conflict
     assert commit_tree is None or isinstance(commit_tree, pygit2.Tree)
     assert len(orig_parent_trees) == len(rebased_parent_trees)
     assert all(
@@ -541,13 +542,13 @@ def rebase(
     conflicts: list[
         tuple[
             str,
-            pygit2.Object | None,
-            list[pygit2.Object | None],
-            list[pygit2.Object | None],
+            typing.Union[pygit2.Object, None],
+            list[typing.Union[pygit2.Object, None]],
+            list[typing.Union[pygit2.Object, None]],
         ]
     ],
     verbose: bool,
-) -> pygit2.Commit | str:
+) -> typing.Union[pygit2.Commit, str]:
     orig_parents = commit.parents
     orig_parent_trees = [parent.tree for parent in orig_parents]
     rebased_parents = [
@@ -759,9 +760,9 @@ commits_count = len(commits_to_rebase)
 conflicts: list[
     tuple[
         str,
-        pygit2.Object | None,
-        list[pygit2.Object | None],
-        list[pygit2.Object | None],
+        typing.Union[pygit2.Object | None],
+        list[typing.Union[pygit2.Object, None]],
+        list[typing.Union[pygit2.Object, None]],
     ]
 ] = []
 for commit in commits_to_rebase:
