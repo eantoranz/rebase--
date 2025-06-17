@@ -9,6 +9,16 @@ import typing
 import sys
 
 
+if not hasattr(pygit2, "enums"):
+    sys.stderr.write(
+        f"You are using a version of pygit2 that is too old.\n"
+        f"pygit2 version: {pygit2.__version__}\n"
+        "Try switching to a newer version of it.\n"
+    )
+    sys.stderr.flush()
+    sys.exit(1)
+
+
 def die_with_error(error: str) -> None:
     sys.stderr.write(f"{error}\n")
     sys.stderr.flush()
