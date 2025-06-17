@@ -760,7 +760,7 @@ commits_count = len(commits_to_rebase)
 conflicts: list[
     tuple[
         str,
-        typing.Union[pygit2.Object | None],
+        typing.Union[pygit2.Object, None],
         list[typing.Union[pygit2.Object, None]],
         list[typing.Union[pygit2.Object, None]],
     ]
