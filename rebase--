@@ -546,9 +546,11 @@ def merge_trees(
 
 def rebase(
     repo: pygit2.Repository,
-    commit: pygit2.Commit,
-    commits_map: dict[pygit2.Oid, pygit2.Commit],
-    signature: pygit2.Signature,
+    upstream: pygit2.Commit,
+    source: pygit2.Commit,
+    onto: typing.Union[
+        pygit2.Commit, None
+    ],  # If it is None, it is assumed to be the upstream
     conflicts: list[
         tuple[
             str,
@@ -558,42 +560,76 @@ def rebase(
         ]
     ],
     verbose: bool,
-) -> typing.Union[pygit2.Commit, str]:
-    orig_parents = commit.parents
-    orig_parent_trees = [parent.tree for parent in orig_parents]
-    rebased_parents = [
-        commits_map.get(orig_parent.id, orig_parent) for orig_parent in orig_parents
-    ]
-    rebased_parent_trees = [parent.tree for parent in rebased_parents]
+) -> typing.Union[
+    pygit2.Commit, tuple[str, pygit2.Commit, dict[pygit2.Oid, pygit2.Commit]]
+]:  # tuple if there is a problem, indicate the reason, the commit, and the current mapping of commits
+    if onto is None:
+        onto = upstream
 
-    result = merge_trees(
-        repo,
-        commit.id,
-        commit.tree,
-        orig_parent_trees,
-        rebased_parent_trees,
-        conflicts,
-        verbose=verbose,
-    )
-    if conflicts:
-        # There were conflicts
-        return None
-
-    if result is None:
-        # is there a constant for an empty tree?
-        result = repo.TreeBuilder().write()
-
-    rebased_parent_ids = [parent.id for parent in rebased_parents]
-    new_commit = repo.create_commit(
-        None,
-        commit.author,
-        signature,
-        commit.message,
-        result,
-        rebased_parent_ids,
+    # lookfor commits to rebase
+    signature = pygit2.Signature(
+        repo.config.__getitem__("user.name"),
+        repo.config.__getitem__("user.email"),
     )
 
-    return repo.get(new_commit)
+    merge_base_id = repo.merge_base(source.id, upstream.id)
+    if merge_base_id is None:
+        die_with_error("No merge base between the upstream and the source")
+
+    rebase_walker = repo.walk(
+        source.id, pygit2.enums.SortMode.TOPOLOGICAL | pygit2.enums.SortMode.REVERSE
+    )
+    rebase_walker.hide(merge_base_id)
+
+    commits_to_rebase = list(rebase_walker)
+
+    # mappings between original commits and their resulting equivalents
+    commits_map = {merge_base_id: onto}
+    counter = 0
+    commits_count = len(commits_to_rebase)
+    # the items in the conflicts tuple: path, rebased object, original parents, rebased parents
+
+    for commit in commits_to_rebase:
+        counter += 1
+        sys.stderr.write(f"\rRebasing {counter}/{commits_count}")
+
+        orig_parents = commit.parents
+        orig_parent_trees = [parent.tree for parent in orig_parents]
+        rebased_parents = [
+            commits_map.get(orig_parent.id, orig_parent) for orig_parent in orig_parents
+        ]
+        rebased_parent_trees = [parent.tree for parent in rebased_parents]
+
+        result_tree = merge_trees(
+            repo,
+            commit.id,
+            commit.tree,
+            orig_parent_trees,
+            rebased_parent_trees,
+            conflicts,
+            verbose=verbose,
+        )
+        if conflicts:
+            # There were conflicts
+            return f"There were conflicts", commit, commits_map
+
+        if result_tree is None:
+            # is there a constant for an empty tree?
+            result_tree = repo.TreeBuilder().write()
+
+        rebased_parent_ids = [parent.id for parent in rebased_parents]
+        new_commit = repo.create_commit(
+            None,
+            commit.author,
+            signature,
+            commit.message,
+            result_tree,
+            rebased_parent_ids,
+        )
+
+        commits_map[commit.id] = repo.get(new_commit)
+
+    return commits_map[source.id]
 
 
 ########################
@@ -746,26 +782,6 @@ if args.stay and args.for_real:
 # RUNNING REBASE
 ################
 
-merge_base_id = repo.merge_base(source.id, upstream.id)
-if merge_base_id is None:
-    die_with_error("No merge base between the upstream and the source")
-
-rebase_walker = repo.walk(
-    source.id, pygit2.enums.SortMode.TOPOLOGICAL | pygit2.enums.SortMode.REVERSE
-)
-rebase_walker.hide(merge_base_id)
-
-commits_to_rebase = list(rebase_walker)
-
-signature = pygit2.Signature(
-    repo.config.__getitem__("user.name"),
-    repo.config.__getitem__("user.email"),
-)
-
-# mappings between original commits and their resulting equivalents
-commits_map = {merge_base_id: onto}
-counter = 0
-commits_count = len(commits_to_rebase)
 # the items in the conflicts tuple: path, rebased object, original parents, rebased parents
 conflicts: list[
     tuple[
@@ -775,12 +791,13 @@ conflicts: list[
         list[typing.Union[pygit2.Object, None]],
     ]
 ] = []
-for commit in commits_to_rebase:
-    counter += 1
-    sys.stderr.write(f"\rRebasing {counter}/{commits_count}")
-    result = rebase(repo, commit, commits_map, signature, conflicts, args.verbose)
+
+result = rebase(repo, upstream, source, onto, conflicts, args.verbose)
+
+if isinstance(result, tuple):
+    reason, commit, commits_map = result
+    print()
     if conflicts:
-        print()
         print(f"There was a conflict rebasing commit {commit.id}")
         if args.verbose:
             print("Using the following parents for the commit (original => rebased)")
@@ -810,9 +827,9 @@ for commit in commits_to_rebase:
                     if original_parent == rebased_parent:
                         sys.stdout.write(" (no change)")
                     print()
-        die_with_error(f"Aborting rebase due to conflicts")
-    commits_map[commit.id] = result
-final_commit = commits_map[source.id]
+        die_with_error(f"Aborting rebase due to conflicts on commit {commit.id}")
+    die_with_error(f"{reason} on commit {commit.id}")
+final_commit = result
 
 print()
 print("Rebase was successful")
