@@ -1,0 +1,4 @@
+pytest/repos
+pytest/*.log
+htmlcov
+.coverage
