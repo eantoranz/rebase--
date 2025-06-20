@@ -161,7 +161,7 @@ def easy_merge(
         and original_item.id == rebased_item.id
     ):
         # straight one
-        return True, comit_item
+        return True, commit_item
 
     item_to_commit = None
     solved = False
