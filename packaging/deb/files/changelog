@@ -1,3 +1,15 @@
+rebase-- (0.02-1) unstable; urgency=medium
+
+  * Releasing 0.02
+    - Keep a separate python file with the logic for testing.
+      "rebase--" makes it impossible to import so can't be tested from
+      the original python script.
+    - Make it possible to run on python 3.9.
+    - Add testing (pytest)
+    - Make it possible to create (rpm,deb) using docker.
+
+ -- Edmundo Carmona Antoranz <eantoranz@gmail.com>  Fri, 20 Jun 2025 14:31:02 +0200
+
 rebase-- (0.01-1) unstable; urgency=medium
 
   * Initial release.
