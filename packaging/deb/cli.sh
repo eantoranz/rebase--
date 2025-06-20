@@ -5,8 +5,9 @@
 
 set -e
 
+cd /mnt/work
 # Script that will take care of doing the build process
-git config --global --add safe.directory /mnt/work
+git config --global --add safe.directory $PWD
 
 echo Current status:
 git status

@@ -23,11 +23,13 @@ cd $REBASE_DIR
 git archive --format=tar.gz --prefix=rebase---"$VERSION"/ -o $TARGET_DIR/rebase---$VERSION.tar.gz $COMMITTISH -- rebase-- README\* rebasedashdash.py
 cp $TARGET_DIR/rebase---$VERSION.tar.gz ~/rpmbuild/SOURCES/rebase--
 
-cp packaging/rpm/files/rebase--.spec ~/rpmbuild/SPECS
+PYTHON_VERSION=$( python3 -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')" )
+echo python version: $PYTHON_VERSION
+sed "s/%PYTHON_VERSION%/${PYTHON_VERSION}/" packaging/rpm/files/rebase--.spec.in > ~/rpmbuild/SPECS/rebase--.spec
 
 while true; do
   PACKAGE_ERROR=0
-  rpmbuild --define "debug_package %{nil}" --short-circuit -ba packaging/rpm/files/rebase--.spec || PACKAGE_ERROR=1
+  rpmbuild --define "debug_package %{nil}" --short-circuit -ba ~/rpmbuild/SPECS/rebase--.spec || PACKAGE_ERROR=1
   if [ $PACKAGE_ERROR -eq 0 ]; then
     break
   fi

@@ -6,8 +6,8 @@
 set -e
 
 # Script that will set us in a "usable" environment
-
-git config --global --add safe.directory /mnt/work
+cd /mnt/work
+git config --global --add safe.directory $PWD
 
 echo Current status:
 git status
