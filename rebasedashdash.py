@@ -1,6 +1,9 @@
 # Copyright (c) 2025 Edmundo Carmona Antoranz
 # Released under the terms of GPLv2
 
+# part of rebase--
+# https://github.com/eantoranz/rebase--
+
 import pygit2
 import typing
 import sys

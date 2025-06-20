@@ -1,0 +1,11 @@
+Source: rebase--
+Maintainer: Edmundo Carmona Antoranz <eantoranz@gmail.com>
+Section: vcs
+Priority: optional
+Standards-Version: 4.6.2
+Build-Depends: debhelper-compat (= 13)
+
+Package: rebase--
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, python3-pygit2
+Description: back-to-basics rebasing tool.
