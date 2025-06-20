@@ -22,6 +22,10 @@ function get_distro_version_suffix {
 	fi
 }
 
+cd $REBASE_DIR
+  ./run_tests.sh
+cd -
+
 if [ ! -d $TARGET_DIR ]; then
 	mkdir -p $TARGET_DIR
 fi

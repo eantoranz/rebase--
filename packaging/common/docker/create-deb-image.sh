@@ -26,7 +26,7 @@ echo Building rebase-- deb builder image for $DISTRO:$DOCKER_TAG
 	echo from $DISTRO:$DOCKER_TAG
 	echo run apt-get update
 	echo run apt-get install -y build-essential git vim gdb devscripts debhelper indent
-	if [ "$REQUIREMENTS_FILE" != "" ]; then
+	if [ -n "$REQUIREMENTS_FILE" ]; then
 		echo -n run apt-get install -y
 		cat "$REQUIREMENTS_FILE" | while read package; do
 			echo -n " $package"

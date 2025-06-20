@@ -17,6 +17,10 @@ if [ ! -d $TARGET_DIR ]; then
 	mkdir -p $TARGET_DIR
 fi
 
+cd $REBASE_DIR
+  ./run_tests.sh
+cd -
+
 # let's create the package every single time so we make sure we are _not_ working on a preexisting (and potentially busted!!!) file
 git config --global --add safe.directory "$REBASE_DIR" # so that git can work without complaining
 cd $REBASE_DIR

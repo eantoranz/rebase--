@@ -81,7 +81,7 @@ DOCKER_IMAGE="rebase--rpmbuilder-$DISTRO-$DOCKER_TAG"
 images=$( docker image list -q "$DOCKER_IMAGE" | wc -l )
 if [ $images -eq 0 ]; then
 	echo Image $DOCKER_IMAGE does not exist. Need to create it
-	./packaging/common/docker/create-rpm-image.sh $DISTRO $DOCKER_TAG # packaging/rpm/requirements.txt
+	./packaging/common/docker/create-rpm-image.sh $DISTRO $DOCKER_TAG packaging/rpm/requirements.txt
 fi
 
 if [ "$ACTION" != "build" ]; then
