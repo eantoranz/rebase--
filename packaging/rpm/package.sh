@@ -29,7 +29,7 @@ sed "s/%PYTHON_VERSION%/${PYTHON_VERSION}/" packaging/rpm/files/rebase--.spec.in
 
 while true; do
   PACKAGE_ERROR=0
-  rpmbuild --define "debug_package %{nil}" --short-circuit -ba ~/rpmbuild/SPECS/rebase--.spec || PACKAGE_ERROR=1
+  rpmbuild --define "debug_package %{nil}" -ba ~/rpmbuild/SPECS/rebase--.spec || PACKAGE_ERROR=1
   if [ $PACKAGE_ERROR -eq 0 ]; then
     break
   fi
