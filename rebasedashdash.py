@@ -391,7 +391,7 @@ def merge_trees(
                 # it was solved
                 return easy_solution[1].id
 
-    # not everything in the trees match.... can we solve this puzzle?
+    # not everything in the trees matches.... can we solve this puzzle?
     # We need to walk over the items in the trees, both sets of parents and commit_tree.
     # If we are lucky, we will be able to find correct resolutions for all the
     # separate items in the trees.
