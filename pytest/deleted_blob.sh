@@ -62,5 +62,4 @@ EOF
 
 git commit -m "Modifying the file that was deleted in the merge commit in A" test/
 
-echo commit chart for the test:
-git log --oneline --graph --all --decorate
+get_chart

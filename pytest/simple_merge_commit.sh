@@ -180,8 +180,4 @@ EOF
 
 test $( git status --short | wc -l ) -eq 0
 
-
-echo Here is the final commit chart
-git log --oneline --graph --all --name-status --decorate
-
-echo It is all fine
+get_chart

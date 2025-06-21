@@ -595,6 +595,11 @@ def rebase(
         ]
         rebased_parent_trees = [parent.tree for parent in rebased_parents]
 
+        if orig_parents == rebased_parents:
+            # this commit can be reused as all parents are exactly the same between old and rebased commit
+            commits_map[commit.id] = commit
+            continue
+
         result_tree = merge_trees(
             repo,
             commit.id,

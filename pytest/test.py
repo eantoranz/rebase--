@@ -201,3 +201,19 @@ def test_empty_root_dir():
     assert test.id != result2.id
     assert len(conflicts) == 0
     assert len(result2.tree) == 0
+
+
+def test_reuse_commits():
+    repo = pygit2.Repository("pytest/repos/test_reuse_commits")
+    assert repo is not None
+
+    main = repo.revparse_single("main")
+    base = repo.revparse_single("main~2")
+    assert all(
+        item is not None and isinstance(item, pygit2.Commit) for item in [main, base]
+    )
+
+    conflicts = []
+    result = rebase(repo, base, main, base, conflicts)
+    assert isinstance(result, pygit2.Commit)
+    assert main.id == result.id

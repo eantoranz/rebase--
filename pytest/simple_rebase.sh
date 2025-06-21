@@ -45,5 +45,4 @@ other_commit=$( git rev-parse HEAD )
 
 git branch test
 
-echo commit chart for the test:
-git log --oneline --graph --all --decorate
+get_chart

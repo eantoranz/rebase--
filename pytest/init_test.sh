@@ -15,3 +15,7 @@ export GIT_EDITOR=/bin/true
 git config user.name "Fulanito D'Tal"
 git config user.email fulanito@foo.bar
 
+function get_chart {
+  echo commit chart for the test:
+  git log --oneline --graph --all --decorate
+}

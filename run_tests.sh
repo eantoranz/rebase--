@@ -37,6 +37,9 @@ fi
 # a simple merge commit
 ./setup_test.sh simple_merge_commit "Simple merge commit"
 
+# reuse commits
+./setup_test.sh reuse_commits "Reuse commits"
+
 cd -
 
 if [ -d htmlcov ]; then
