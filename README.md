@@ -83,21 +83,21 @@ in the rebase, you need to use the option `--for-real` (or `-4r`, for short).
 ```
 rebase-- <upstream-branch>
 ```
-`rebase--` will take commits in the range `<upstream-branch>...<current-branch>` and will
+`rebase--` will take commits in the range `<upstream-branch>..<current-branch>` and will
 apply them on top of `<upstream-branch>`.
 
 ## rebase specifying upstream and branch to rebase
 ```
 rebase-- <upstream-branch> <some-branch>
 ```
-`rebase--` will take commits in the range `<upstream-branch>...<some-branch>` and will
+`rebase--` will take commits in the range `<upstream-branch>..<some-branch>` and will
 apply them on top of `<upstream-branch>`.
 
 ## rebase specifying a _different_ point to stack commits onto
 ```
 rebase-- <upstream-branch> <some-branch> --onto <onto-point>
 ```
-`rebase--` will take commits in the range `<upstream-branch>...<some-branch>` and will
+`rebase--` will take commits in the range `<upstream-branch>..<some-branch>` and will
 apply them on top of `<onto-point>`. This use-case is very useful for moving features around.
 
 
