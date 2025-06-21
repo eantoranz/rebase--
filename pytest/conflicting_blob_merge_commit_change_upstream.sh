@@ -176,5 +176,4 @@ EOF
 git add hello_world.txt
 git commit -m "Removed 2 and 3"
 
-echo commit chart for the test:
-git log --oneline --graph --all --decorate
+get_chart

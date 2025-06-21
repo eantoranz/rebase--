@@ -57,17 +57,4 @@ git merge A -m "Merging A" # there should be no conflict there...
 
 test $( git ls-tree -r HEAD | wc -l ) -eq 0 || ( echo working tree is not empty which is unexpected; git ls-tree -r HEAD; exit 1 )
 
-echo commit chart for the test:
-git log --oneline --graph --all --decorate
-
-exit 0
-
-rebase-- -4r main~ # this should run fine
-
-test $( git ls-tree -r HEAD | wc -l ) -eq 1 || ( echo working tree should have a single file; git ls-tree -r HEAD; exit 1 )
-
-rebase-- -4r main # this should also run fine
-
-test $( git ls-tree -r HEAD | wc -l ) -eq 0 || ( echo working tree is not empty which is unexpected; git ls-tree -r HEAD; exit 1 )
-
-echo It\'s all good
+get_chart

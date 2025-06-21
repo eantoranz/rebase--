@@ -85,5 +85,4 @@ HEAD_commit=$( git rev-parse @ )
 
 git switch -c test main
 
-echo commit chart for the test:
-git log --oneline --graph --all --decorate
+get_chart
