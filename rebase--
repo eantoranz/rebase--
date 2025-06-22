@@ -9,8 +9,20 @@ import typing
 import sys
 
 from rebasedashdash import die_with_error
-from rebasedashdash import get_commit
 from rebasedashdash import rebase
+
+
+def get_commit(obj: pygit2.Object) -> pygit2.Commit:
+    current_object = obj
+    while True:
+        if current_object is None:
+            die_with_error(f"Could not get commit from {obj}")
+        if isinstance(current_object, pygit2.Commit):
+            return current_object
+        if isinstance(current_object, pygit2.Tag):
+            current_object = current_object.get_object()
+        else:
+            current_object = None  # force the error
 
 
 ########################

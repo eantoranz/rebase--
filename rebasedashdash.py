@@ -25,19 +25,6 @@ def die_with_error(error: str) -> None:
     sys.exit(1)
 
 
-def get_commit(obj: pygit2.Object) -> pygit2.Commit:
-    current_object = obj
-    while True:
-        if current_object is None:
-            die_with_error(f"Could not get commit from {obj}")
-        if isinstance(current_object, pygit2.Commit):
-            return current_object
-        if isinstance(current_object, pygit2.Tag):
-            current_object = current_object.get_object()
-        else:
-            current_object = None  # force the error
-
-
 class TreesIterator:
 
     def next_tree_item(self, tree_iterator):  # TODO what is the type of an interator?
