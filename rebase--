@@ -8,6 +8,7 @@ import pygit2
 import typing
 import sys
 
+from rebasedashdash import RebaseAction
 from rebasedashdash import die_with_error
 from rebasedashdash import rebase
 
@@ -185,7 +186,19 @@ conflicts: list[
     ]
 ] = []
 
-result = rebase(repo, upstream, source, onto, conflicts)
+
+def progress_hook(action: RebaseAction, information):
+    if action == RebaseAction.REBASED:
+        counter, commits_count, _, _ = information
+        sys.stderr.write(f"\rRebasing {counter}/{commits_count}")
+    elif action == RebaseAction.SKIPPED:
+        counter, commits_count, _ = information
+        sys.stderr.write(f"\rRebasing {counter}/{commits_count}")
+    else:
+        pass  # we do not care for the time being
+
+
+result = rebase(repo, upstream, source, onto, conflicts, progress_hook)
 
 if isinstance(result, tuple):
     reason, commit, commits_map = result
