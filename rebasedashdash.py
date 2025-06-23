@@ -28,7 +28,7 @@ def die_with_error(error: str) -> None:
 
 class RebaseAction(Enum):
     REBASED = 1  # the commit was rebased
-    SKIPPED = 2  # the commit was skipped
+    REUSED = 2  # the commit was skipped
     CONFLICTS = 3  # There were conflicts dealing with this commit
 
 
@@ -592,7 +592,7 @@ def rebase(
         if orig_parents == rebased_parents:
             # this commit can be reused as all parents are exactly the same between old and rebased commit
             if rebase_hook is not None:
-                rebase_hook(RebaseAction.SKIPPED, (counter, commits_count, commit))
+                rebase_hook(RebaseAction.REUSED, (counter, commits_count, commit))
             commits_map[commit.id] = commit
             continue
 
