@@ -4,8 +4,14 @@
 import pygit2
 
 
+USER_NAME = "Fulanito D'Tal"
+USER_EMAIL = "fulanito@foo.bar"
+
 def create_repository(path):
-    return pygit2.init_repository(path, bare=True)
+    repo = pygit2.init_repository(path, bare=True)
+    repo.config["user.name"] = USER_NAME
+    repo.config["user.email"] = USER_EMAIL
+    return repo
 
 
 def create_test_tree():
@@ -58,7 +64,7 @@ def create_commit(repo, root_tree, message, parents=[]):
     else:
         root_tree_id = write_test_tree(repo, root_tree)
     # now we create the commit
-    signature = pygit2.Signature("Fulanito D'Tal", "fulanito@foo.bar")
+    signature = pygit2.Signature(USER_NAME, USER_EMAIL)
     commit_id = repo.create_commit(
         None, signature, signature, message, root_tree_id, parents
     )
