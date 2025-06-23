@@ -14,14 +14,17 @@ from common import create_test_tree
 from common import get_tree_item
 from common import remove_tree_item
 
+
 def test_deleted_blob(tmp_path):
     repo = create_repository(tmp_path)
 
     main_tree = create_test_tree()
     test_dir = add_test_tree(main_tree, "test")
     file_to_delete_txt = 'Here is the content of the file in "main"'
-    add_test_blob(test_dir, "file_to_delete.txt", pygit2.enums.FileMode.BLOB, file_to_delete_txt)
-    another_txt = 'Here is another file that won\'t be modified'
+    add_test_blob(
+        test_dir, "file_to_delete.txt", pygit2.enums.FileMode.BLOB, file_to_delete_txt
+    )
+    another_txt = "Here is another file that won't be modified"
     add_test_blob(main_tree, "another.txt", pygit2.enums.FileMode.BLOB, another_txt)
     main_commits = [create_commit(repo, main_tree, "Setting up initial commit")]
 
@@ -38,8 +41,17 @@ def test_deleted_blob(tmp_path):
 
     # continue working on main
     file_to_delete_txt = 'Modifying the content of the file in "main"'
-    add_test_blob(test_dir, "file_to_delete.txt", pygit2.enums.FileMode.BLOB, file_to_delete_txt)
-    main_commits.append(create_commit(repo, main_tree, "Modifying the content of the file in main", main_commits[-1:]))
+    add_test_blob(
+        test_dir, "file_to_delete.txt", pygit2.enums.FileMode.BLOB, file_to_delete_txt
+    )
+    main_commits.append(
+        create_commit(
+            repo,
+            main_tree,
+            "Modifying the content of the file in main",
+            main_commits[-1:],
+        )
+    )
 
     the_tree = repo.get(main_commits[-1]).tree
     assert len(the_tree) == 2
@@ -52,8 +64,17 @@ def test_deleted_blob(tmp_path):
     # we modify the file to be deleted in a different manner
     file_to_delete_txt = 'Modifying the content of the file in "other"'
     test_dir = get_tree_item(other_tree, "test")
-    add_test_blob(test_dir, "file_to_delete.txt", pygit2.enums.FileMode.BLOB, file_to_delete_txt)
-    other_commits.append(create_commit(repo, other_tree, "Modifying the content of the file in other", other_commits[-1:]))
+    add_test_blob(
+        test_dir, "file_to_delete.txt", pygit2.enums.FileMode.BLOB, file_to_delete_txt
+    )
+    other_commits.append(
+        create_commit(
+            repo,
+            other_tree,
+            "Modifying the content of the file in other",
+            other_commits[-1:],
+        )
+    )
 
     the_tree = repo.get(other_commits[-1]).tree
     assert len(the_tree) == 2
@@ -69,7 +90,14 @@ def test_deleted_blob(tmp_path):
 
     # let's do the merge in the air
     remove_tree_item(test_dir, "file_to_delete.txt")
-    other_commits.append(create_commit(repo, other_tree, "Merging main into other", [other_commits[-1], main_commits[-1]]))
+    other_commits.append(
+        create_commit(
+            repo,
+            other_tree,
+            "Merging main into other",
+            [other_commits[-1], main_commits[-1]],
+        )
+    )
 
     # verify the content of the merge commit
     the_tree = repo.get(other_commits[-1]).tree
@@ -79,7 +107,9 @@ def test_deleted_blob(tmp_path):
     # continue working in main
     another_txt = "Ok, Ok... so I did modify it. Sue me!"
     add_test_blob(main_tree, "another.txt", pygit2.enums.FileMode.BLOB, another_txt)
-    main_commits.append(create_commit(repo, main_tree, "Modifying the other file", main_commits[-1:]))
+    main_commits.append(
+        create_commit(repo, main_tree, "Modifying the other file", main_commits[-1:])
+    )
 
     the_tree = repo.get(main_commits[-1]).tree
     assert len(the_tree) == 2
@@ -95,8 +125,17 @@ def test_deleted_blob(tmp_path):
         "was defined in the first parent of the merge commit.\n"
     )
     test_dir = get_tree_item(main_tree, "test")
-    add_test_blob(test_dir, "file_to_delete.txt", pygit2.enums.FileMode.BLOB, file_to_delete_txt)
-    main_commits.append(create_commit(repo, main_tree, "Modifying the file that was deleted in the merge commit in other", main_commits[-1:]))
+    add_test_blob(
+        test_dir, "file_to_delete.txt", pygit2.enums.FileMode.BLOB, file_to_delete_txt
+    )
+    main_commits.append(
+        create_commit(
+            repo,
+            main_tree,
+            "Modifying the file that was deleted in the merge commit in other",
+            main_commits[-1:],
+        )
+    )
 
     the_tree = repo.get(main_commits[-1]).tree
     assert len(the_tree) == 2

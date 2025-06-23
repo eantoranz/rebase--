@@ -11,6 +11,7 @@ from common import create_commit
 from common import create_repository
 from common import create_test_tree
 
+
 def test_conflicting_blob_merge_commit(tmp_path):
     repo = create_repository(tmp_path)
 
@@ -39,7 +40,14 @@ def test_conflicting_blob_merge_commit(tmp_path):
         "Wrapping up the file\n"
     )
     add_test_blob(main_tree, "hello_world.txt", pygit2.enums.FileMode.BLOB, hello_world)
-    main_commits.append(create_commit(repo, main_tree, "hello world: modifying the middle of the file", main_commits))
+    main_commits.append(
+        create_commit(
+            repo,
+            main_tree,
+            "hello world: modifying the middle of the file",
+            main_commits,
+        )
+    )
 
     # work on A
     hello_world = (
@@ -50,7 +58,11 @@ def test_conflicting_blob_merge_commit(tmp_path):
         "Wrapping up the file\n"
     )
     add_test_blob(A_tree, "hello_world.txt", pygit2.enums.FileMode.BLOB, hello_world)
-    A_commits.append(create_commit(repo, A_tree, "hello world: also modified the middle of the file", A_commits))
+    A_commits.append(
+        create_commit(
+            repo, A_tree, "hello world: also modified the middle of the file", A_commits
+        )
+    )
 
     # normal merge of A into main
     merge = repo.merge_commits(main_commits[-1], A_commits[-1])
@@ -65,12 +77,23 @@ def test_conflicting_blob_merge_commit(tmp_path):
         "Wrapping up the file\n"
     )
     add_test_blob(main_tree, "hello_world.txt", pygit2.enums.FileMode.BLOB, hello_world)
-    main_commits.append(create_commit(repo, main_tree, "merging branch A into main", [main_commits[-1], A_commits[-1]]))
+    main_commits.append(
+        create_commit(
+            repo,
+            main_tree,
+            "merging branch A into main",
+            [main_commits[-1], A_commits[-1]],
+        )
+    )
 
     # add a completely different file in B
     separate_file = "this is a separate file"
-    add_test_blob(B_tree, "separate-file.txt", pygit2.enums.FileMode.BLOB, separate_file)
-    B_commits.append(create_commit(repo, B_tree, "merging branch A into main", B_commits))
+    add_test_blob(
+        B_tree, "separate-file.txt", pygit2.enums.FileMode.BLOB, separate_file
+    )
+    B_commits.append(
+        create_commit(repo, B_tree, "merging branch A into main", B_commits)
+    )
 
     # now we setup the references
     repo.references.create("refs/heads/A", A_commits[-1])

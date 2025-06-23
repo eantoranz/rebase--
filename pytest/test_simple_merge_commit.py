@@ -11,6 +11,7 @@ from common import create_commit
 from common import create_repository
 from common import create_test_tree
 
+
 def test_simple_merge_commit(tmp_path):
     # * EEEE (B) Adding a separate file
     # | *   DDDD (main) merging branch A
@@ -31,7 +32,9 @@ def test_simple_merge_commit(tmp_path):
         "\n"
         "Wrapping up the file\n"
     )
-    add_test_blob(root_tree_main, "executable", pygit2.enums.FileMode.BLOB_EXECUTABLE, executable)
+    add_test_blob(
+        root_tree_main, "executable", pygit2.enums.FileMode.BLOB_EXECUTABLE, executable
+    )
     non_executable = (
         "This is a non-executable file\n"
         "\n"
@@ -39,13 +42,33 @@ def test_simple_merge_commit(tmp_path):
         "\n"
         "Wrapping up the file\n"
     )
-    add_test_blob(root_tree_main, "non-executable", pygit2.enums.FileMode.BLOB, non_executable)
-    final_executable_from_main = "This file will be turned into executable from main branch\n"
-    add_test_blob(root_tree_main, "final-executable-from-main", pygit2.enums.FileMode.BLOB, final_executable_from_main)
+    add_test_blob(
+        root_tree_main, "non-executable", pygit2.enums.FileMode.BLOB, non_executable
+    )
+    final_executable_from_main = (
+        "This file will be turned into executable from main branch\n"
+    )
+    add_test_blob(
+        root_tree_main,
+        "final-executable-from-main",
+        pygit2.enums.FileMode.BLOB,
+        final_executable_from_main,
+    )
     final_executable_from_A = "This file will be turned into executable from branch A\n"
-    add_test_blob(root_tree_main, "final-executable-from-A", pygit2.enums.FileMode.BLOB, final_executable_from_A)
+    add_test_blob(
+        root_tree_main,
+        "final-executable-from-A",
+        pygit2.enums.FileMode.BLOB,
+        final_executable_from_A,
+    )
 
-    main_commits = [create_commit(repo, root_tree_main, "Adding an executable and a non-executable file, also two files that will will only change their executable flags (one from each branch)")]
+    main_commits = [
+        create_commit(
+            repo,
+            root_tree_main,
+            "Adding an executable and a non-executable file, also two files that will will only change their executable flags (one from each branch)",
+        )
+    ]
 
     root_tree_A = copy.deepcopy(root_tree_main)
     A_commits = copy.copy(main_commits)
@@ -68,10 +91,24 @@ def test_simple_merge_commit(tmp_path):
         "\n"
         "Modifying the end of the file in main\n"
     )
-    add_test_blob(root_tree_main, "non-executable", pygit2.enums.FileMode.BLOB, non_executable) # it is still non-executable
-    add_test_blob(root_tree_main, "final-executable-from-main", pygit2.enums.FileMode.BLOB_EXECUTABLE, final_executable_from_main) # no change in content, just the filemode
+    add_test_blob(
+        root_tree_main, "non-executable", pygit2.enums.FileMode.BLOB, non_executable
+    )  # it is still non-executable
+    add_test_blob(
+        root_tree_main,
+        "final-executable-from-main",
+        pygit2.enums.FileMode.BLOB_EXECUTABLE,
+        final_executable_from_main,
+    )  # no change in content, just the filemode
 
-    main_commits.append(create_commit(repo, root_tree_main, "executable content is modified and changed to non-executable, non-executable is only modified in content, executable-from-main is turned into executable", main_commits))
+    main_commits.append(
+        create_commit(
+            repo,
+            root_tree_main,
+            "executable content is modified and changed to non-executable, non-executable is only modified in content, executable-from-main is turned into executable",
+            main_commits,
+        )
+    )
 
     # switching to A
     executable = (
@@ -81,7 +118,9 @@ def test_simple_merge_commit(tmp_path):
         "\n"
         "Modifying the end of the file in A\n"
     )
-    add_test_blob(root_tree_A, "executable", pygit2.enums.FileMode.BLOB_EXECUTABLE, executable)
+    add_test_blob(
+        root_tree_A, "executable", pygit2.enums.FileMode.BLOB_EXECUTABLE, executable
+    )
     non_executable = (
         "This is a non-executable file\n"
         "\n"
@@ -89,15 +128,36 @@ def test_simple_merge_commit(tmp_path):
         "\n"
         "Wrapping up the file\n"
     )
-    add_test_blob(root_tree_A, "non-executable", pygit2.enums.FileMode.BLOB_EXECUTABLE, non_executable) # we make it executable
-    add_test_blob(root_tree_A, "final-executable-from-A", pygit2.enums.FileMode.BLOB_EXECUTABLE, final_executable_from_A) # no change in content, just the filemode
+    add_test_blob(
+        root_tree_A,
+        "non-executable",
+        pygit2.enums.FileMode.BLOB_EXECUTABLE,
+        non_executable,
+    )  # we make it executable
+    add_test_blob(
+        root_tree_A,
+        "final-executable-from-A",
+        pygit2.enums.FileMode.BLOB_EXECUTABLE,
+        final_executable_from_A,
+    )  # no change in content, just the filemode
 
-    A_commits.append(create_commit(repo, root_tree_A, "non-executable content is modified and changed to executable, executable is only modified in content, also executable-from-A is made into executable", A_commits))
+    A_commits.append(
+        create_commit(
+            repo,
+            root_tree_A,
+            "non-executable content is modified and changed to executable, executable is only modified in content, also executable-from-A is made into executable",
+            A_commits,
+        )
+    )
 
     # we merge A into main
     merge_result = repo.merge_commits(main_commits[-1], A_commits[-1])
     assert merge_result.conflicts is None
-    main_commits.append(create_commit(repo, merge_result.write_tree(), "", [main_commits[-1], A_commits[-1]]))
+    main_commits.append(
+        create_commit(
+            repo, merge_result.write_tree(), "", [main_commits[-1], A_commits[-1]]
+        )
+    )
 
     # verify result of merge
     main_tree = repo.get(main_commits[-1]).tree
@@ -122,17 +182,27 @@ def test_simple_merge_commit(tmp_path):
 
     assert main_tree["executable"].filemode == pygit2.enums.FileMode.BLOB
     assert main_tree["non-executable"].filemode == pygit2.enums.FileMode.BLOB_EXECUTABLE
-    assert main_tree["final-executable-from-main"].filemode == pygit2.enums.FileMode.BLOB_EXECUTABLE
-    assert main_tree["final-executable-from-A"].filemode == pygit2.enums.FileMode.BLOB_EXECUTABLE
+    assert (
+        main_tree["final-executable-from-main"].filemode
+        == pygit2.enums.FileMode.BLOB_EXECUTABLE
+    )
+    assert (
+        main_tree["final-executable-from-A"].filemode
+        == pygit2.enums.FileMode.BLOB_EXECUTABLE
+    )
 
     repo.references.create("refs/heads/main", main_commits[-1])
     repo.references.create("refs/heads/A", A_commits[-1])
 
     # switch into B and add a separate file that does not mess with the merge
     separate_file = "This is a separate file"
-    add_test_blob(root_tree_B, "separate-file.txt", pygit2.enums.FileMode.BLOB, separate_file)
+    add_test_blob(
+        root_tree_B, "separate-file.txt", pygit2.enums.FileMode.BLOB, separate_file
+    )
 
-    B_commits.append(create_commit(repo, root_tree_B, "Adding a separate file", [B_commits[-1]]))
+    B_commits.append(
+        create_commit(repo, root_tree_B, "Adding a separate file", [B_commits[-1]])
+    )
 
     repo.references.create("refs/heads/B", B_commits[-1])
 
@@ -155,9 +225,17 @@ def test_simple_merge_commit(tmp_path):
     assert result.parents[1] != A.id
     assert len(conflicts) == 0
 
-    assert result.tree["non-executable"].filemode == pygit2.enums.FileMode.BLOB_EXECUTABLE
-    assert result.tree["final-executable-from-main"].filemode == pygit2.enums.FileMode.BLOB_EXECUTABLE
-    assert result.tree["final-executable-from-A"].filemode == pygit2.enums.FileMode.BLOB_EXECUTABLE
+    assert (
+        result.tree["non-executable"].filemode == pygit2.enums.FileMode.BLOB_EXECUTABLE
+    )
+    assert (
+        result.tree["final-executable-from-main"].filemode
+        == pygit2.enums.FileMode.BLOB_EXECUTABLE
+    )
+    assert (
+        result.tree["final-executable-from-A"].filemode
+        == pygit2.enums.FileMode.BLOB_EXECUTABLE
+    )
 
     assert result.tree["separate-file.txt"] is not None
 
@@ -178,5 +256,7 @@ def test_simple_merge_commit(tmp_path):
         "\n"
         "Modifying the end of the file in main\n"
     )
-    assert result.tree["non-executable"].filemode == pygit2.enums.FileMode.BLOB_EXECUTABLE
+    assert (
+        result.tree["non-executable"].filemode == pygit2.enums.FileMode.BLOB_EXECUTABLE
+    )
     assert result.tree["non-executable"].data.decode() == non_executable

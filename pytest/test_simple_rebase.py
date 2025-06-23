@@ -40,7 +40,14 @@ def test_simple_rebase(tmp_path):
     )
     root_tree = create_test_tree()
     add_test_blob(root_tree, "hello_world.txt", pygit2.enums.FileMode.BLOB, hello_world)
-    main_commit_ids.append(create_commit(repo, root_tree, "hello world: modifying the middle of the file", main_commit_ids))
+    main_commit_ids.append(
+        create_commit(
+            repo,
+            root_tree,
+            "hello world: modifying the middle of the file",
+            main_commit_ids,
+        )
+    )
 
     repo.references.create("refs/heads/main", main_commit_ids[-1])
 
@@ -55,7 +62,9 @@ def test_simple_rebase(tmp_path):
     )
     root_tree = create_test_tree()
     add_test_blob(root_tree, "hello_world.txt", pygit2.enums.FileMode.BLOB, hello_world)
-    other_commit_ids = [create_commit(repo, root_tree, "hello world: initial commit", other_commits_ids)]
+    other_commit_ids = [
+        create_commit(repo, root_tree, "hello world: initial commit", other_commits_ids)
+    ]
 
     repo.references.create("refs/heads/other", other_commit_ids[-1])
 

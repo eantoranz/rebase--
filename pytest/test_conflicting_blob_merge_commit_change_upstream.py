@@ -11,6 +11,7 @@ from common import create_commit
 from common import create_repository
 from common import create_test_tree
 
+
 def test_conflicting_blob_merge_commit_change_upstream(tmp_path):
     repo = create_repository(tmp_path)
 
@@ -67,7 +68,11 @@ def test_conflicting_blob_merge_commit_change_upstream(tmp_path):
         "20\n"
     )
     add_test_blob(main_tree, "hello_world.txt", pygit2.enums.FileMode.BLOB, hello_world)
-    commits_main.append(create_commit(repo, main_tree, "hello world: 7=27, 8 is gone, 9=29", [commits_main[-1]]))
+    commits_main.append(
+        create_commit(
+            repo, main_tree, "hello world: 7=27, 8 is gone, 9=29", [commits_main[-1]]
+        )
+    )
 
     # switch to branch A
     hello_world = (
@@ -116,7 +121,9 @@ def test_conflicting_blob_merge_commit_change_upstream(tmp_path):
         "20\n"
     )
     add_test_blob(main_tree, "hello_world.txt", pygit2.enums.FileMode.BLOB, hello_world)
-    commits_main.append(create_commit(repo, main_tree, "hello world: 17 is gone", [commits_main[-1]]))
+    commits_main.append(
+        create_commit(repo, main_tree, "hello world: 17 is gone", [commits_main[-1]])
+    )
 
     # if we try to merge it, there is a clash
     merge = repo.merge_commits(commits_main[-1], commits_A[-1])
@@ -145,7 +152,11 @@ def test_conflicting_blob_merge_commit_change_upstream(tmp_path):
         "20\n"
     )
     add_test_blob(main_tree, "hello_world.txt", pygit2.enums.FileMode.BLOB, hello_world)
-    commits_main.append(create_commit(repo, main_tree, "merging branch A", [commits_main[-1], commits_A[-1]]))
+    commits_main.append(
+        create_commit(
+            repo, main_tree, "merging branch A", [commits_main[-1], commits_A[-1]]
+        )
+    )
 
     # switch into B and add a non-conflicting change
     hello_world = (

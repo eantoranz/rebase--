@@ -3,8 +3,10 @@
 
 import pygit2
 
+
 def create_repository(path):
     return pygit2.init_repository(path, bare=True)
+
 
 def create_test_tree():
     # - If adding a blob, the item will be added into the tree like this:
@@ -27,7 +29,7 @@ def add_test_tree(parent_tree, path):
     return child_tree
 
 
-def write_test_tree(repo, tree, root_tree = True):
+def write_test_tree(repo, tree, root_tree=True):
     tree_builder = repo.TreeBuilder()
     for path, tree_item in tree.items():
         if isinstance(tree_item, tuple):
@@ -38,10 +40,12 @@ def write_test_tree(repo, tree, root_tree = True):
             # it is a tree
             child_tree_id = write_test_tree(repo, tree_item, False)
             if child_tree_id is None:
-                continue # tree was empty
+                continue  # tree was empty
             tree_builder.insert(path, child_tree_id, pygit2.enums.FileMode.TREE)
     if not root_tree and len(tree_builder) == 0:
-        return None  # avoid writing this tree as it is empty and it's _not_ the root tree
+        return (
+            None  # avoid writing this tree as it is empty and it's _not_ the root tree
+        )
     tree_id = tree_builder.write()
     return tree_id
 
@@ -54,14 +58,17 @@ def create_commit(repo, root_tree, message, parents=[]):
     else:
         root_tree_id = write_test_tree(repo, root_tree)
     # now we create the commit
-    signature = pygit2.Signature('Fulanito D\'Tal', 'fulanito@foo.bar')
-    commit_id = repo.create_commit(None, signature, signature, message, root_tree_id, parents)
+    signature = pygit2.Signature("Fulanito D'Tal", "fulanito@foo.bar")
+    commit_id = repo.create_commit(
+        None, signature, signature, message, root_tree_id, parents
+    )
     return commit_id
+
 
 def remove_tree_item(tree, path):
     assert path.find("/") == -1
     if path in tree:
-        del(tree[path])
+        del tree[path]
 
 
 def get_tree_item(tree, path):
