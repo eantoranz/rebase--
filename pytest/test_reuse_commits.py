@@ -11,6 +11,7 @@ from common import create_commit
 from common import create_repository
 from common import create_test_tree
 
+
 def test_reuse_commits(tmp_path):
     # * CCCC third commit (main)
     # * BBBB second commit
@@ -21,21 +22,30 @@ def test_reuse_commits(tmp_path):
 
     root_tree = create_test_tree()
     add_test_blob(
-        root_tree, "some-file.txt", pygit2.enums.FileMode.BLOB, "Content on the first commit"
+        root_tree,
+        "some-file.txt",
+        pygit2.enums.FileMode.BLOB,
+        "Content on the first commit",
     )
     commit_id = create_commit(repo, root_tree, "first commit", [])
     commit_ids = [commit_id]
 
     root_tree = create_test_tree()
     add_test_blob(
-        root_tree, "some-file.txt", pygit2.enums.FileMode.BLOB, "Content on the second commit"
+        root_tree,
+        "some-file.txt",
+        pygit2.enums.FileMode.BLOB,
+        "Content on the second commit",
     )
     commit_id = create_commit(repo, root_tree, "second commit", [commit_ids[-1]])
     commit_ids.append(commit_id)
 
     root_tree = create_test_tree()
     add_test_blob(
-        root_tree, "some-file.txt", pygit2.enums.FileMode.BLOB, "Content on the third commit"
+        root_tree,
+        "some-file.txt",
+        pygit2.enums.FileMode.BLOB,
+        "Content on the third commit",
     )
     commit_id = create_commit(repo, root_tree, "third commit", [commit_ids[-1]])
     commit_ids.append(commit_id)
