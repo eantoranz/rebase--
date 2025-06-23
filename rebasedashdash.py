@@ -7,6 +7,7 @@
 import pygit2
 import typing
 import sys
+from enum import Enum
 
 
 if not hasattr(pygit2, "enums"):
@@ -17,6 +18,12 @@ if not hasattr(pygit2, "enums"):
     )
     sys.stderr.flush()
     sys.exit(1)
+
+
+class RebaseAction(Enum):
+    REBASED = 1  # the commit was rebased
+    REUSED = 2  # the commit was skipped
+    CONFLICTS = 3  # There were conflicts dealing with this commit
 
 
 class TreesIterator:
@@ -536,6 +543,7 @@ def rebase(
             list[typing.Union[pygit2.Object, None]],
         ]
     ],
+    rebase_hook=None,  # hook that will be called when we have figured out what happened with a commit
 ) -> typing.Union[
     pygit2.Commit, tuple[str, pygit2.Commit, dict[pygit2.Oid, pygit2.Commit]]
 ]:  # tuple if there is a problem, indicate the reason, the commit, and the current mapping of commits
@@ -567,7 +575,6 @@ def rebase(
 
     for commit in commits_to_rebase:
         counter += 1
-        sys.stderr.write(f"\rRebasing {counter}/{commits_count}")
 
         orig_parents = commit.parents
         orig_parent_trees = [parent.tree for parent in orig_parents]
@@ -578,6 +585,8 @@ def rebase(
 
         if orig_parents == rebased_parents:
             # this commit can be reused as all parents are exactly the same between old and rebased commit
+            if rebase_hook is not None:
+                rebase_hook(RebaseAction.REUSED, (counter, commits_count, commit))
             commits_map[commit.id] = commit
             continue
 
@@ -591,6 +600,8 @@ def rebase(
         )
         if conflicts:
             # There were conflicts
+            if rebase_hook is not None:
+                rebase_hook(RebaseAction.CONFLICTS, commit)
             return f"There were conflicts", commit, commits_map
 
         if result_tree is None:
@@ -607,6 +618,11 @@ def rebase(
             rebased_parent_ids,
         )
 
-        commits_map[commit.id] = repo.get(new_commit)
+        new_commit = repo.get(new_commit)
+        commits_map[commit.id] = new_commit
+        if rebase_hook is not None:
+            rebase_hook(
+                RebaseAction.REBASED, (counter, commits_count, commit, new_commit)
+            )
 
     return commits_map[source.id]
