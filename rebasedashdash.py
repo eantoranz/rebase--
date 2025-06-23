@@ -19,12 +19,6 @@ if not hasattr(pygit2, "enums"):
     sys.exit(1)
 
 
-def die_with_error(error: str) -> None:
-    sys.stderr.write(f"{error}\n")
-    sys.stderr.flush()
-    sys.exit(1)
-
-
 class TreesIterator:
 
     def next_tree_item(self, tree_iterator):  # TODO what is the type of an interator?
@@ -556,7 +550,7 @@ def rebase(
 
     merge_base_id = repo.merge_base(source.id, upstream.id)
     if merge_base_id is None:
-        die_with_error("No merge base between the upstream and the source")
+        return "No merge base between the upstream and the source", None, None
 
     rebase_walker = repo.walk(
         source.id, pygit2.enums.SortMode.TOPOLOGICAL | pygit2.enums.SortMode.REVERSE

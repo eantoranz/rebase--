@@ -8,7 +8,6 @@ import pygit2
 import typing
 import sys
 
-from rebasedashdash import die_with_error
 from rebasedashdash import rebase
 
 
@@ -23,6 +22,12 @@ def get_commit(obj: pygit2.Object) -> pygit2.Commit:
             current_object = current_object.get_object()
         else:
             current_object = None  # force the error
+
+
+def die_with_error(error: str) -> None:
+    sys.stderr.write(f"{error}\n")
+    sys.stderr.flush()
+    sys.exit(1)
 
 
 ########################
@@ -189,7 +194,8 @@ result = rebase(repo, upstream, source, onto, conflicts)
 
 if isinstance(result, tuple):
     reason, commit, commits_map = result
-    print()
+    if commit is not None:
+        print()
     if conflicts:
         print(f"There was a conflict rebasing commit {commit.id}")
         if args.verbose:
@@ -221,7 +227,9 @@ if isinstance(result, tuple):
                         sys.stdout.write(" (no change)")
                     print()
         die_with_error(f"Aborting rebase due to conflicts on commit {commit.id}")
-    die_with_error(f"{reason} on commit {commit.id}")
+    if commit is not None:
+        die_with_error(f"{reason} on commit {commit.id}")
+    die_with_error(reason)
 final_commit = result
 
 print()
