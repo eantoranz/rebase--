@@ -31,7 +31,7 @@ done
 
 if [ $# -lt 3 ]; then
 	echo Not enough parameters. Need to provide:
-	echo - action "package (p/pack), cli (c)"
+	echo - action "(package/pack/p, cli/c, test/t)"
 	echo - distro "(ubuntu, debian)"
 	echo - distro docker tag "(stable, testing, buster, 22.04, etc)"
 	echo - if the action is \"package\", the committish to package.
@@ -50,6 +50,10 @@ c|cli)
 	ACTOR=cli
 	ACTION=cli
 	;;
+t|test)
+  ACTOR=test
+  ACTION=test
+  ;;
 p|pack|package)
 	if [ $# -lt 4 ]; then
 		echo You also need to specify which committish to package
@@ -70,6 +74,12 @@ p|pack|package)
 	echo Unknown action $ACTION. Possible actions: package, cli.
 	exit 1
 esac
+
+if [ ! -x packaging/deb/$ACTION.sh ]; then
+  echo packaging/rpm/$ACTION.sh is not executable
+  echo docker cannot use it
+  exit 1
+fi
 
 
 DOCKER_IMAGE="rebase--debbuilder-$DISTRO-$DOCKER_TAG"

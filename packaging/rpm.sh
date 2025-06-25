@@ -31,7 +31,7 @@ done
 
 if [ $# -lt 3 ]; then
 	echo Not enough parameters. Need to provide:
-	echo - action "(package (p/pack), cli (c)"
+	echo - action "(package/pack/p, cli/c, test/t)"
 	echo - distro "(fedora, centos, etc)"
 	echo - distro docker tag "(41, 7, 8, etc, etc)"
 	echo - if the action is \"package\", the committish to package.
@@ -54,6 +54,10 @@ c|cli)
 	ACTOR=cli
 	ACTION=cli
 	;;
+t|test)
+  ACTOR=test
+  ACTION=test
+  ;;
 p|pack|package)
 	if [ $# -lt 4 ]; then
 		echo You also need to specify which committish to package
@@ -75,6 +79,11 @@ p|pack|package)
 	exit 1
 esac
 
+if [ ! -x packaging/rpm/$ACTION.sh ]; then
+  echo packaging/rpm/$ACTION.sh is not executable
+  echo docker cannot use it
+  exit 1
+fi
 
 DOCKER_IMAGE="rebase--rpmbuilder-$DISTRO-$DOCKER_TAG"
 
