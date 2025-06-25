@@ -149,7 +149,7 @@ Avoid checking the state of the working tree. Consider that when the rebase calc
 reset to the final commit will take place if using `--for-real` without `--stay`. Needless to say that
 you should use this option **with care**.
 
-##--force-rebase/-f
+## --force-rebase/-f
 The same effect as in `git-rebase`, avoid reusing old commits and force creating new commits even if
 the original commit could be kept in the rebase.
 
