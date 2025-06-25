@@ -1,5 +1,3 @@
-pytest/repos
-pytest/*.log
 htmlcov
 .coverage
 packages
