@@ -4,6 +4,7 @@
 import copy
 import pygit2
 
+from rebasedashdash import RebaseOptions
 from rebasedashdash import rebase
 
 from common import add_test_blob
@@ -193,7 +194,8 @@ def test_conflicting_blob_merge_commit_change_upstream(tmp_path):
     )
 
     conflicts = []
-    result = rebase(repo, B, main, B, conflicts)
+    rebase_options = RebaseOptions(B, main)  # onto is B
+    result = rebase(repo, rebase_options, conflicts)
     assert isinstance(result, pygit2.Commit)
     assert B.id != result.id
     assert main.id != result.id

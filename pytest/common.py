@@ -7,6 +7,7 @@ import pygit2
 USER_NAME = "Fulanito D'Tal"
 USER_EMAIL = "fulanito@foo.bar"
 
+
 def create_repository(path):
     repo = pygit2.init_repository(path, bare=True)
     repo.config["user.name"] = USER_NAME

@@ -144,10 +144,14 @@ If you want to rebase a local branch **different from the one you are currently 
 you can use `--for-real/-4r` together with this option so that the _other_ local reference is adjusted
 after the rebase is done. The current working tree is not affected in any way if you use this option.
 
-## --force/-f
+## --force
 Avoid checking the state of the working tree. Consider that when the rebase calculation is finished, a hard
 reset to the final commit will take place if using `--for-real` without `--stay`. Needless to say that
 you should use this option **with care**.
+
+##--force-rebase/-f
+The same effect as in `git-rebase`, avoid reusing old commits and force creating new commits even if
+the original commit could be kept in the rebase.
 
 ## --verbose
 Provide more information about the objects that are involved in a conflict.

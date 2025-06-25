@@ -8,7 +8,7 @@ import pygit2
 import typing
 import sys
 
-from rebasedashdash import RebaseAction
+from rebasedashdash import RebaseAction, RebaseOptions
 from rebasedashdash import rebase
 
 
@@ -81,10 +81,16 @@ parser.add_argument(
 )
 parser.add_argument(
     "--force",
-    "-f",
     action="store_true",
     default=False,
     help="Avoid checks like having a clean working tree before switching. WARNING: Assume it will do a hard reset when finished.",
+)
+parser.add_argument(
+    "--force-rebase",
+    "-f",
+    action="store_true",
+    default=False,
+    help="Avoid reusing commits during the rebase so that all commits are completely new.",
 )
 
 args = parser.parse_args()
@@ -100,7 +106,7 @@ repo = pygit2.Repository(".")
 if args.detach and args.stay:
     die_with_error("Cannot use --detach together with --stay")
 
-# it we are moving aroung, the working tree has to be clean
+# if we are moving around, the working tree has to be clean
 if (
     (args.for_real or args.detach)
     and not args.stay
@@ -194,20 +200,28 @@ conflicts: list[
 REUSED_COMMITS_COUNTER = 0
 
 
-def progress_hook(action: RebaseAction, information):
+def progress_hook(action: RebaseAction, counter, commits_count):
     global REUSED_COMMITS_COUNTER
     if action == RebaseAction.REBASED:
-        counter, commits_count, _, _ = information
-        sys.stderr.write(f"\rRebasing {counter}/{commits_count}")
+        pass
     elif action == RebaseAction.REUSED:
-        counter, commits_count, _ = information
-        sys.stderr.write(f"\rRebasing {counter}/{commits_count}")
         REUSED_COMMITS_COUNTER += 1
     else:
         pass  # we do not care for the time being
+    sys.stderr.write(
+        f"\rRebasing {counter}/{commits_count}"
+        + (
+            f", reused {REUSED_COMMITS_COUNTER} commits"
+            if REUSED_COMMITS_COUNTER > 0
+            else ""
+        )
+    )
 
 
-result = rebase(repo, upstream, source, onto, conflicts, progress_hook)
+rebase_options = RebaseOptions(upstream, source, onto)
+rebase_options.progress_hook = progress_hook
+rebase_options.force_rebase = args.force_rebase
+result = rebase(repo, rebase_options, conflicts)
 
 if isinstance(result, tuple):
     reason, commit, commits_map = result

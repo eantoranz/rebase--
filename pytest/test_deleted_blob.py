@@ -4,6 +4,7 @@
 import copy
 import pygit2
 
+from rebasedashdash import RebaseOptions
 from rebasedashdash import rebase
 
 from common import add_test_blob
@@ -156,7 +157,8 @@ def test_deleted_blob(tmp_path):
     )
 
     conflicts = []
-    result = rebase(repo, main, other, main.parents[0], conflicts)
+    rebase_options = RebaseOptions(main, other, main.parents[0])
+    result = rebase(repo, rebase_options, conflicts)
     assert isinstance(result, pygit2.Commit)
     assert main.id != result.id
     assert other.id != result.id
@@ -166,6 +168,7 @@ def test_deleted_blob(tmp_path):
     another = "Ok, Ok... so I did modify it. Sue me!"
     assert another == result.tree["another.txt"].data.decode()
 
-    result2 = rebase(repo, main, result, main, conflicts)
+    rebase_options = RebaseOptions(main, result)  # onto = main
+    result2 = rebase(repo, rebase_options, conflicts)
     assert isinstance(result2, tuple)
     assert len(conflicts) == 1

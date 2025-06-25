@@ -4,6 +4,7 @@
 import copy
 import pygit2
 
+from rebasedashdash import RebaseOptions
 from rebasedashdash import rebase
 
 from common import add_test_blob
@@ -111,14 +112,16 @@ def test_empty_root_dir(tmp_path):
     )
 
     conflicts = []
-    result = rebase(repo, main.parents[0], test, main.parents[0], conflicts)
+    rebase_options = RebaseOptions(main.parents[0], test)  # onto = main.parents[0]
+    result = rebase(repo, rebase_options, conflicts)
     assert isinstance(result, pygit2.Commit)
     assert main.parents[0].id != result.id
     assert test.id != result.id
     assert len(conflicts) == 0
     assert len(result.tree) == 1
 
-    result2 = rebase(repo, main, result, main, conflicts)
+    rebase_options = RebaseOptions(main, result)  # onto = main
+    result2 = rebase(repo, rebase_options, conflicts)
     assert isinstance(result2, pygit2.Commit)
     assert main.parents[0].id != result2.id
     assert test.id != result2.id

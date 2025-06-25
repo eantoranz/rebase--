@@ -4,6 +4,7 @@
 import pygit2
 import time
 
+from rebasedashdash import RebaseOptions
 from rebasedashdash import rebase
 
 from common import add_test_blob
@@ -62,6 +63,7 @@ def test_reuse_commits(tmp_path):
     )
 
     conflicts = []
-    result = rebase(repo, base, main, base, conflicts)
+    rebase_options = RebaseOptions(base, main)  # onto is base
+    result = rebase(repo, rebase_options, conflicts)
     assert isinstance(result, pygit2.Commit)
     assert main.id == result.id

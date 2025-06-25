@@ -5,8 +5,9 @@
 # https://github.com/eantoranz/rebase--
 
 import pygit2
-import typing
 import sys
+import typing
+from collections.abc import Callable
 from enum import Enum
 
 
@@ -528,13 +529,29 @@ def merge_trees(
     return None
 
 
+class RebaseOptions:
+    upstream: pygit2.Commit = None
+    source: pygit2.Commit
+    onto: typing.Union[pygit2.Commit, None]
+    progress_hook: Callable = (
+        None  # hook that will be called when we have figured out what happened with a commit
+    )
+    force_rebase: bool = False
+
+    def __init__(
+        self,
+        upstream: pygit2.Commit,
+        source: pygit2.Commit,
+        onto: typing.Union[pygit2.Commit, None] = None,
+    ):
+        self.upstream = upstream
+        self.source = source
+        self.onto = onto
+
+
 def rebase(
     repo: pygit2.Repository,
-    upstream: pygit2.Commit,
-    source: pygit2.Commit,
-    onto: typing.Union[
-        pygit2.Commit, None
-    ],  # If it is None, it is assumed to be the upstream
+    rebase_options: RebaseOptions,
     conflicts: list[
         tuple[
             str,
@@ -543,10 +560,17 @@ def rebase(
             list[typing.Union[pygit2.Object, None]],
         ]
     ],
-    rebase_hook=None,  # hook that will be called when we have figured out what happened with a commit
 ) -> typing.Union[
     pygit2.Commit, tuple[str, pygit2.Commit, dict[pygit2.Oid, pygit2.Commit]]
 ]:  # tuple if there is a problem, indicate the reason, the commit, and the current mapping of commits
+
+    assert rebase_options.upstream is not None
+    assert rebase_options.source is not None
+
+    upstream = rebase_options.upstream
+    source = rebase_options.source
+    onto = rebase_options.onto
+
     if onto is None:
         onto = upstream
 
@@ -583,10 +607,12 @@ def rebase(
         ]
         rebased_parent_trees = [parent.tree for parent in rebased_parents]
 
-        if orig_parents == rebased_parents:
+        if not rebase_options.force_rebase and orig_parents == rebased_parents:
             # this commit can be reused as all parents are exactly the same between old and rebased commit
-            if rebase_hook is not None:
-                rebase_hook(RebaseAction.REUSED, (counter, commits_count, commit))
+            if rebase_options.progress_hook is not None:
+                rebase_options.progress_hook(
+                    RebaseAction.REUSED, counter, commits_count
+                )
             commits_map[commit.id] = commit
             continue
 
@@ -600,8 +626,10 @@ def rebase(
         )
         if conflicts:
             # There were conflicts
-            if rebase_hook is not None:
-                rebase_hook(RebaseAction.CONFLICTS, commit)
+            if rebase_options.progress_hook is not None:
+                rebase_options.progress_hook(
+                    RebaseAction.CONFLICTS, counter, commits_count
+                )
             return f"There were conflicts", commit, commits_map
 
         if result_tree is None:
@@ -620,9 +648,7 @@ def rebase(
 
         new_commit = repo.get(new_commit)
         commits_map[commit.id] = new_commit
-        if rebase_hook is not None:
-            rebase_hook(
-                RebaseAction.REBASED, (counter, commits_count, commit, new_commit)
-            )
+        if rebase_options.progress_hook is not None:
+            rebase_options.progress_hook(RebaseAction.REBASED, counter, commits_count)
 
     return commits_map[source.id]
