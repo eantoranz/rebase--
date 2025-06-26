@@ -321,6 +321,7 @@ repo.checkout_tree(
     final_commit,
     strategy=pygit2.enums.CheckoutStrategy.FORCE,
 )
+repo.state_cleanup()
 if args.detach or source_local_reference is None:
     print(f"You are working on {final_commit.id} now")
 else:
