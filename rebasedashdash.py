@@ -460,19 +460,10 @@ def merge_trees(
                 # tree was deleted
                 continue
             # a non-empty real tree or a conflict
+            # if there is a conflict, it has been taken care of at the "leaves" (blobs) level
             if recursive_result:
                 # a non-empty tree
                 tree_builder.insert(path, recursive_result, pygit2.enums.FileMode.TREE)
-            else:
-                # it's a conflict
-                conflicts.append(
-                    (
-                        fullpath,
-                        commit_tree_item,
-                        original_parent_items,
-                        rebased_parent_items,
-                    )
-                )
             continue  # go to the next tree item
 
         if (
