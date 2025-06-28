@@ -143,11 +143,23 @@ def easy_merge(
     rebased_item: typing.Union[pygit2.Object, None],
 ) -> tuple[bool, typing.Union[pygit2.Object, None]]:
 
+    def items_match(item1: pygit2.Object, item2: pygit2.Object) -> bool:
+        return (item1.id, item1.name, item1.type) == (
+            item2.id,
+            item2.name,
+            item2.type,
+        ) and (
+            item1.type != pygit2.enums.ObjectType.BLOB
+            # if they are blobs, the filemode has to match too
+            or item1.filemode == item2.filemode
+        )
+
     if (
-        original_item == rebased_item
+        original_item is None
+        and rebased_item is None
         or original_item is not None
         and rebased_item is not None
-        and original_item.id == rebased_item.id
+        and items_match(original_item, rebased_item)
     ):
         # straight one
         return True, commit_item
@@ -168,14 +180,14 @@ def easy_merge(
         # we know that original/rebased parents are not the same
         if original_item is None:
             # rebased parent must set
-            if rebased_item.id == commit_item.id:
+            if items_match(rebased_item, commit_item):
                 solved, item_to_commit = True, commit_item
             else:
                 # no easy resolution
                 pass
         else:
             # original parent is set
-            if commit_item.id == original_item.id:
+            if items_match(commit_item, original_item):
                 # we can use the rebased parent item
                 solved, item_to_commit = True, rebased_item
             else:
@@ -184,7 +196,7 @@ def easy_merge(
                     pass
                 else:
                     # rebased parent item is set
-                    if rebased_item.id == commit_item.id:
+                    if items_match(rebased_item, commit_item):
                         # the change has already been applied on rebased_parent_item
                         solved, item_to_commit = True, rebased_item
                     else:
@@ -197,25 +209,25 @@ def easy_merge(
 def merge_blobs_3way(
     repo: pygit2.Repository,
     ancestor: typing.Union[tuple[pygit2.Oid, pygit2.enums.FileMode], None],
-    parent1: typing.Union[tuple[pygit2.Oid, pygit2.enums.FileMode], None],
-    parent2: typing.Union[tuple[pygit2.Oid, pygit2.enums.FileMode], None],
+    ours: typing.Union[tuple[pygit2.Oid, pygit2.enums.FileMode], None],
+    theirs: typing.Union[tuple[pygit2.Oid, pygit2.enums.FileMode], None],
 ) -> typing.Union[
     tuple[pygit2.Oid, pygit2.enums.FileMode], pygit2.Index
 ]:  # returning the index means there was a conflict, tuple[Blob, filemode]
     # deal with the easy ones first
-    if parent1 == parent2 or parent2 == ancestor:
-        return parent1
-    if parent1 == ancestor:
-        return parent2
+    if ours == theirs or theirs == ancestor:
+        return ours
+    if ours == ancestor:
+        return theirs
 
     # FIXME Ugh... I hate creating trees just for this but I see no support for 3-way merges of blobs in pygit2 so....
     tree_builder_p1 = repo.TreeBuilder()
-    if parent1:
-        tree_builder_p1.insert("a", parent1[0], parent1[1])
+    if ours:
+        tree_builder_p1.insert("a", ours[0], ours[1])
 
     tree_builder_p2 = repo.TreeBuilder()
-    if parent2:
-        tree_builder_p2.insert("a", parent2[0], parent2[1])
+    if theirs:
+        tree_builder_p2.insert("a", theirs[0], theirs[1])
 
     tree_builder_a = repo.TreeBuilder()
     if ancestor:
