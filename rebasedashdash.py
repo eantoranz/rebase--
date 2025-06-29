@@ -137,30 +137,29 @@ class TreesIterator:
         )
 
 
+def objects_match(object1: pygit2.Object, object2: pygit2.Object) -> bool:
+    if object1 is None and object2 is None:
+        return True
+    if object1 is None or object2 is None:
+        return False
+    return (object1.id, object1.name, object1.type) == (
+        object2.id,
+        object2.name,
+        object2.type,
+    ) and (
+        object1.type != pygit2.enums.ObjectType.BLOB
+        # if they are blobs, the filemode has to match too
+        or object1.filemode == object2.filemode
+    )
+
+
 def easy_merge(
     commit_item: typing.Union[pygit2.Object, None],
     original_item: typing.Union[pygit2.Object, None],
     rebased_item: typing.Union[pygit2.Object, None],
 ) -> tuple[bool, typing.Union[pygit2.Object, None]]:
 
-    def items_match(item1: pygit2.Object, item2: pygit2.Object) -> bool:
-        return (item1.id, item1.name, item1.type) == (
-            item2.id,
-            item2.name,
-            item2.type,
-        ) and (
-            item1.type != pygit2.enums.ObjectType.BLOB
-            # if they are blobs, the filemode has to match too
-            or item1.filemode == item2.filemode
-        )
-
-    if (
-        original_item is None
-        and rebased_item is None
-        or original_item is not None
-        and rebased_item is not None
-        and items_match(original_item, rebased_item)
-    ):
+    if objects_match(original_item, rebased_item):
         # straight one
         return True, commit_item
 
@@ -180,14 +179,14 @@ def easy_merge(
         # we know that original/rebased parents are not the same
         if original_item is None:
             # rebased parent must set
-            if items_match(rebased_item, commit_item):
+            if objects_match(rebased_item, commit_item):
                 solved, item_to_commit = True, commit_item
             else:
                 # no easy resolution
                 pass
         else:
             # original parent is set
-            if items_match(commit_item, original_item):
+            if objects_match(commit_item, original_item):
                 # we can use the rebased parent item
                 solved, item_to_commit = True, rebased_item
             else:
@@ -196,7 +195,7 @@ def easy_merge(
                     pass
                 else:
                     # rebased parent item is set
-                    if items_match(rebased_item, commit_item):
+                    if objects_match(rebased_item, commit_item):
                         # the change has already been applied on rebased_parent_item
                         solved, item_to_commit = True, rebased_item
                     else:
@@ -248,12 +247,67 @@ def merge_blobs_3way(
     return result_index_item.id, result_index_item.mode
 
 
+class CommitMetadata:
+    repo: pygit2.Repository
+    commit: pygit2.Commit
+    _merge_base: typing.Union[
+        pygit2.Commit, None, bool
+    ]  # False if it hasn't been set yet, None if there is no merge base
+    rebased_parents: list[pygit2.Commit]
+    _rebased_merge_base: typing.Union[
+        pygit2.Commit, None, bool
+    ]  # False if it hasn't been set yet, None if there is no merge base
+
+    def __init__(
+        self,
+        repo: pygit2.Repository,
+        commit: pygit2.Commit,
+        rebased_parents: list[pygit2.Commit],
+    ):
+        self.repo = repo
+        self.commit = commit
+        self.rebased_parents = rebased_parents
+        self._rebased_merge_base = False
+        self._merge_base = False
+        assert len(self.commit.parents) == len(rebased_parents)
+
+    def _get_merge_bases(self):
+        if self._merge_base == False:
+            if len(self.rebased_parents) == 0:
+                self._merge_base = None
+                self._rebased_merge_base = None
+            elif len(self.rebased_parents) == 1:
+                self._merge_base = self.commit.parents[0]
+                self._rebased_merge_base = self.rebased_parents[0]
+            else:
+                self._merge_base = self.repo.merge_base_many(
+                    [parent.id for parent in self.commit.parents]
+                )
+                if self._merge_base is not None:
+                    self._merge_base = self.repo.get(self._merge_base)
+                self._rebased_merge_base = self.repo.merge_base_many(
+                    [parent.id for parent in self.rebased_parents]
+                )
+                if self._rebased_merge_base is not None:
+                    self._rebased_merge_base = self.repo.get(self._rebased_merge_base)
+
+    @property
+    def merge_base(self) -> typing.Union[pygit2.Commit, None]:
+        self._get_merge_bases()
+        return self._merge_base
+
+    @property
+    def rebased_merge_base(self) -> typing.Union[pygit2.Commit, None]:
+        self._get_merge_bases()
+        return self._rebased_merge_base
+
+
 def merge_blobs(
-    repo: pygit2.Repository,
+    commit_metadata: CommitMetadata,
+    path: str,
     commit_blob: typing.Union[pygit2.Blob, None],
     original_parent_blobs: list[typing.Union[pygit2.Blob, None]],
     rebased_parent_blobs: list[typing.Union[pygit2.Blob, None]],
-    paths: list[str] = [],
 ) -> typing.Union[
     tuple[pygit2.Oid, int], None, bool
 ]:  # None means a deleted Blob, False means there was a conflict, tuple[Blob, filemode]
@@ -274,7 +328,7 @@ def merge_blobs(
 
     if len(original_parent_blobs) == 1:
         result = merge_blobs_3way(
-            repo,
+            commit_metadata.repo,
             (
                 (original_parent_blobs[0].id, original_parent_blobs[0].filemode)
                 if original_parent_blobs[0]
@@ -289,6 +343,31 @@ def merge_blobs(
         )
         if result is None or isinstance(result, tuple):
             return result
+
+        # last resort: checking against the common ancestor of the parent commits
+        if len(commit_metadata.commit.parents) > 1:
+            # the other parents are the same between original and rebased parents
+            # if the original_parent_blob is the same as in the merge_base of the parents of the original commit
+            # we can take the original commit object
+            merge_base = commit_metadata.merge_base
+            if merge_base is not None:
+                if path in merge_base.tree:
+                    ancestor_object = merge_base.tree[path]
+                else:
+                    ancestor_object = None
+                if objects_match(ancestor_object, original_parent_blobs[0]):
+                    # let's make sure that it did not change on the other side
+                    rebased_merge_base = commit_metadata.rebased_merge_base
+                    if rebased_merge_base is not None:
+                        if path in rebased_merge_base.tree:
+                            rebased_ancestor_object = rebased_merge_base.tree[path]
+                        else:
+                            rebased_ancestor_object = None
+                        if objects_match(
+                            rebased_ancestor_object, rebased_parent_blobs[0]
+                        ):
+                            return commit_blob.id, commit_blob.filemode
+
         # if there is a conflict this way, it is not possible to solve it differently
         return False
 
@@ -310,7 +389,7 @@ def merge_blobs(
                 result_blob = None
                 break
             merge_result = merge_blobs_3way(
-                repo,
+                commit_metadata.repo,
                 (original_parent_blob.id, original_parent_blob.filemode),
                 result_blob,
                 (rebased_parent_blob.id, rebased_parent_blob.filemode),
@@ -332,8 +411,7 @@ def merge_blobs(
 # TODO is it ok to only consider _differing_ parents? (trees, blobs)
 # I have a hunch this is way too optimistic.
 def merge_trees(
-    repo: pygit2.Repository,
-    commit_id: pygit2.Oid,
+    commit_metadata: CommitMetadata,
     commit_tree: typing.Union[
         pygit2.Tree, None
     ],  # TODO not necessarily a root tree so maybe a better name would clear it up
@@ -397,7 +475,7 @@ def merge_trees(
     # If we are lucky, we will be able to find correct resolutions for all the
     # separate items in the trees.
     trees_iterator = TreesIterator(commit_tree, orig_parent_trees, rebased_parent_trees)
-    tree_builder = repo.TreeBuilder()
+    tree_builder = commit_metadata.repo.TreeBuilder()
     while tree_items := trees_iterator.next_tree_items():
         path, commit_tree_item, original_parent_items, rebased_parent_items = tree_items
         differing_parents = set()  # each item is a tuple (original item, rebased item)
@@ -453,10 +531,8 @@ def merge_trees(
                 *differing_parents
             )
             paths.append(path)
-            fullpath = "/".join(paths)
             recursive_result = merge_trees(
-                repo,
-                commit_id,
+                commit_metadata,
                 commit_tree_item,
                 original_differing_parent_items,
                 rebased_differing_parent_items,
@@ -492,11 +568,11 @@ def merge_trees(
             paths.append(path)
             fullpath = "/".join(paths)
             blob_result = merge_blobs(
-                repo,
+                commit_metadata,
+                fullpath,
                 commit_tree_item,
                 original_differing_parent_items,
                 rebased_differing_parent_items,
-                paths,
             )
             del paths[-1]
             if blob_result is None or isinstance(blob_result, tuple):
@@ -600,10 +676,10 @@ def rebase(
     commits_count = len(commits_to_rebase)
     # the items in the conflicts tuple: path, rebased object, original parents, rebased parents
 
-    for commit in commits_to_rebase:
+    for rebased_commit in commits_to_rebase:
         counter += 1
 
-        orig_parents = commit.parents
+        orig_parents = rebased_commit.parents
         orig_parent_trees = [parent.tree for parent in orig_parents]
         rebased_parents = [
             commits_map.get(orig_parent.id, orig_parent) for orig_parent in orig_parents
@@ -616,13 +692,14 @@ def rebase(
                 rebase_options.progress_hook(
                     RebaseAction.REUSED, counter, commits_count
                 )
-            commits_map[commit.id] = commit
+            commits_map[rebased_commit.id] = rebased_commit
             continue
 
+        commit_metadata = CommitMetadata(repo, rebased_commit, rebased_parents)
+
         result_tree = merge_trees(
-            repo,
-            commit.id,
-            commit.tree,
+            commit_metadata,
+            rebased_commit.tree,
             orig_parent_trees,
             rebased_parent_trees,
             conflicts,
@@ -633,7 +710,7 @@ def rebase(
                 rebase_options.progress_hook(
                     RebaseAction.CONFLICTS, counter, commits_count
                 )
-            return f"There were conflicts", commit, commits_map
+            return f"There were conflicts", rebased_commit, commits_map
 
         if result_tree is None:
             # is there a constant for an empty tree?
@@ -642,15 +719,15 @@ def rebase(
         rebased_parent_ids = [parent.id for parent in rebased_parents]
         new_commit = repo.create_commit(
             None,
-            commit.author,
+            rebased_commit.author,
             signature,
-            commit.message,
+            rebased_commit.message,
             result_tree,
             rebased_parent_ids,
         )
 
         new_commit = repo.get(new_commit)
-        commits_map[commit.id] = new_commit
+        commits_map[rebased_commit.id] = new_commit
         if rebase_options.progress_hook is not None:
             rebase_options.progress_hook(RebaseAction.REBASED, counter, commits_count)
 

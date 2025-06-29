@@ -81,3 +81,14 @@ def remove_tree_item(tree, path):
 def get_tree_item(tree, path):
     assert path.find("/") == -1
     return tree.get(path, None)
+
+
+def create_blob(
+    repo: pygit2.Repository, name: str, content: str, filemode: pygit2.enums.FileMode
+):
+    tree_builder = repo.TreeBuilder()
+
+    tree_builder.insert(name, repo.create_blob(content), filemode)
+
+    tree = repo.get(tree_builder.write())
+    return tree[name]
