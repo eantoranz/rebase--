@@ -686,7 +686,10 @@ def rebase(
         ]
         rebased_parent_trees = [parent.tree for parent in rebased_parents]
 
-        if not rebase_options.force_rebase and orig_parents == rebased_parents:
+        if not rebase_options.force_rebase and all(
+            commits_map.get(parent.id, parent) == parent
+            for parent in rebased_commit.parents
+        ):
             # this commit can be reused as all parents are exactly the same between old and rebased commit
             if rebase_options.progress_hook is not None:
                 rebase_options.progress_hook(
@@ -731,4 +734,4 @@ def rebase(
         if rebase_options.progress_hook is not None:
             rebase_options.progress_hook(RebaseAction.REBASED, counter, commits_count)
 
-    return commits_map[source.id]
+    return commits_map[commits_to_rebase[-1].id]

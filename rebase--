@@ -264,8 +264,6 @@ if isinstance(result, tuple):
 final_commit = result
 
 print()
-if REUSED_COMMITS_COUNTER:
-    print(f"Reused commits: {REUSED_COMMITS_COUNTER}")
 print("Rebase was successful")
 
 #################
