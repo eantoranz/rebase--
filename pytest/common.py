@@ -3,6 +3,8 @@
 
 import pygit2
 
+from pygit2.enums import FileMode
+
 
 USER_NAME = "Fulanito D'Tal"
 USER_EMAIL = "fulanito@foo.bar"
@@ -23,9 +25,9 @@ def create_test_tree():
     return {}
 
 
-def add_test_blob(tree, path: str, mode: pygit2.enums.FileMode, content):
+def add_test_blob(tree, path: str, mode: FileMode, content):
     assert path.find("/") == -1
-    assert mode in (pygit2.enums.FileMode.BLOB, pygit2.enums.FileMode.BLOB_EXECUTABLE)
+    assert mode in (FileMode.BLOB, FileMode.BLOB_EXECUTABLE)
     tree[path] = (mode, content)
 
 
@@ -84,7 +86,7 @@ def get_tree_item(tree, path):
 
 
 def create_blob(
-    repo: pygit2.Repository, name: str, content: str, filemode: pygit2.enums.FileMode
+    repo: pygit2.Repository, name: str, content: str, filemode: FileMode = FileMode.BLOB
 ):
     tree_builder = repo.TreeBuilder()
 
