@@ -20,9 +20,14 @@ else
   echo Could not find a python3-coverage binary to run tests
 fi
 
+if [ $# -eq 0 ]; then
+  TESTS=pytest/test*.py
+else
+  TESTS=$@
+fi
+
 if [ -n "$COVERAGE_BIN" ]; then
-  echo Running coverage tests
-  $COVERAGE_BIN run --source rebasedashdash -m pytest pytest/test*.py
+  $COVERAGE_BIN run --source rebasedashdash -m pytest $TESTS
   echo Generating code coverage report
   $COVERAGE_BIN html
   echo check directory htmlcov
@@ -39,4 +44,4 @@ else
 fi
 
 export PYTHONPATH=$PWD
-$PYTEST_BIN pytest/test*.py
+$PYTEST_BIN $TESTS
