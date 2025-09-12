@@ -447,7 +447,7 @@ def merge_blobs(
                 else None
             )
             if debug:
-                log("Applying changes between parents: {parent}, {rebased_parent}")
+                log(f"Applying changes between parents: {parent}, {rebased_parent}")
             if parent == rebased_parent:
                 if debug:
                     log(

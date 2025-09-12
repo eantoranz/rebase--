@@ -4,6 +4,7 @@
 # Released under the terms of GPLv2.0
 
 import argparse
+import os
 import pygit2
 import typing
 import sys
@@ -92,13 +93,26 @@ parser.add_argument(
     default=False,
     help="Avoid reusing commits during the rebase so that all commits are completely new.",
 )
-parser.add_argument(
-    "--debug",
-    "-d",
-    action="store_true",
-    default=False,
-    help="Show debug output (can produce a lot of output)."
-)
+if 'DEVELOPER' in os.environ:
+    parser.add_argument(
+        "--git-tip",
+        type=str,
+        default=None,
+        help="A commit from a previous run of this rebase. rebase-- will compare each new commit against that rebase.",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Show debugging information.",
+    )
+    parser.add_argument(
+        "--debug-paths",
+        type=str,
+        nargs="+",
+        default=[],
+        help="Debug only around these files (can specify directories)."
+    )
 
 args = parser.parse_args()
 
@@ -228,7 +242,13 @@ def progress_hook(action: RebaseAction, counter, commits_count):
 rebase_options = RebaseOptions(upstream, source, onto)
 rebase_options.progress_hook = progress_hook
 rebase_options.force_rebase = args.force_rebase
-rebase_options.debug=args.debug
+
+if "DEVELOPER" in os.environ:
+    if args.git_tip:
+        rebase_options.git_tip = get_commit(repo.revparse_single(args.git_tip))
+    rebase_options.debug = args.debug
+    rebase_options.debug_paths = args.debug_paths
+
 result = rebase(repo, rebase_options, conflicts)
 
 if isinstance(result, tuple):
