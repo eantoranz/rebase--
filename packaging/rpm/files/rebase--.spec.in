@@ -1,5 +1,5 @@
 Name:           rebase--
-Version:        0.02
+Version:        0.03
 Release:        1%{?dist}
 Summary:        back-to-basics rebasing tool.
 
@@ -33,6 +33,10 @@ install -m 444 rebasedashdash.py %{buildroot}%{_libdir}/python%PYTHON_VERSION%/s
 
 
 %changelog
+* Fri Jun 20 2025 Edmundo Carmona Antoranz <eantoranz@gmail.com>
+- Releasing 0.03
+- The biggest change is that we are leveraging previous conflict resolution
+  when rebasing merges _and_ not working on full files.
 * Fri Jun 20 2025 Edmundo Carmona Antoranz <eantoranz@gmail.com>
 - Releasing 0.02
 - Keep a separate python file with the logic for testing.
