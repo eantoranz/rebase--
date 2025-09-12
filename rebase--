@@ -92,6 +92,13 @@ parser.add_argument(
     default=False,
     help="Avoid reusing commits during the rebase so that all commits are completely new.",
 )
+parser.add_argument(
+    "--debug",
+    "-d",
+    action="store_true",
+    default=False,
+    help="Show debug output (can produce a lot of output)."
+)
 
 args = parser.parse_args()
 
@@ -221,6 +228,7 @@ def progress_hook(action: RebaseAction, counter, commits_count):
 rebase_options = RebaseOptions(upstream, source, onto)
 rebase_options.progress_hook = progress_hook
 rebase_options.force_rebase = args.force_rebase
+rebase_options.debug=args.debug
 result = rebase(repo, rebase_options, conflicts)
 
 if isinstance(result, tuple):

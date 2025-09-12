@@ -12,6 +12,51 @@ from common import create_repository
 from common import create_test_tree
 
 
+"""
+Sequence of git commands to replicate this scenario
+
+git init .
+git checkout -b main
+cat > hello_world.txt <<EOF
+Hello world
+
+This is the initial commit of the file
+
+Wrapping up the file
+EOF
+git add hello_world.txt
+git commit -m "hello world: initial commit"
+
+# create branch other
+git branch other
+
+# second commit in main
+cat > hello_world.txt <<EOF
+Hello world
+
+We are modifying the middle of the file
+
+Wrapping up the file
+EOF
+git add hello_world.txt
+git commit -m "hello world: modifying the middle of the file"
+
+# second commit in other
+cat > hello_world.txt <<EOF
+Hello world
+
+This is the initial commit of the file
+
+We are modifying the end of the file
+EOF
+git add hello_world.txt
+git commit -m "hello world: modifying the end of the file"
+
+# now we run the rebase
+git rebase main other
+"""
+
+
 def test_simple_rebase(tmp_path):
     # * CCCC (main)
     # | * BBBB (other)
@@ -64,7 +109,12 @@ def test_simple_rebase(tmp_path):
     root_tree = create_test_tree()
     add_test_blob(root_tree, "hello_world.txt", pygit2.enums.FileMode.BLOB, hello_world)
     other_commit_ids = [
-        create_commit(repo, root_tree, "hello world: initial commit", other_commits_ids)
+        create_commit(
+            repo,
+            root_tree,
+            "hello world: modifying the end of the file",
+            other_commits_ids,
+        )
     ]
 
     repo.references.create("refs/heads/other", other_commit_ids[-1])
@@ -78,6 +128,7 @@ def test_simple_rebase(tmp_path):
 
     conflicts = []
     rebase_options = RebaseOptions(main, other)  # onto is main
+    rebase_options.debug = True
     result = rebase(repo, rebase_options, conflicts)
     assert isinstance(result, pygit2.Commit)
     assert main.id != result.id

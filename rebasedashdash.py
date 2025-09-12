@@ -27,6 +27,40 @@ class RebaseAction(Enum):
     CONFLICTS = 3  # There were conflicts dealing with this commit
 
 
+class RebaseOptions:
+    upstream: pygit2.Commit = None
+    source: pygit2.Commit
+    onto: typing.Union[pygit2.Commit, None]
+    progress_hook: Callable = (
+        None  # hook that will be called when we have figured out what happened with a commit
+    )
+    force_rebase: bool = False
+    git_tip: typing.Union[pygit2.Commit, None] = None
+    """
+    The rebase has already been carried out and it should finish with this commit, if provided.
+    Then we can trace every commit and make sure that the result is a match... otherwise, we can stop right there
+    for analysis.
+    """
+    debug: bool = False
+    debug_paths: list[str] = []
+
+    def __init__(
+        self,
+        upstream: pygit2.Commit,
+        source: pygit2.Commit,
+        onto: typing.Union[pygit2.Commit, None] = None,
+    ):
+        self.upstream = upstream
+        self.source = source
+        self.onto = onto
+
+
+def log(message: str, rebase_options: typing.Union[RebaseOptions, None] = None):
+    if rebase_options is None or rebase_options.debug:
+        sys.stderr.write(f"{message}\n")
+        sys.stderr.flush()
+
+
 class TreesIterator:
 
     def next_tree_item(self, tree_iterator):  # TODO what is the type of an interator?
@@ -210,14 +244,55 @@ def merge_blobs_3way(
     ancestor: typing.Union[tuple[pygit2.Oid, pygit2.enums.FileMode], None],
     ours: typing.Union[tuple[pygit2.Oid, pygit2.enums.FileMode], None],
     theirs: typing.Union[tuple[pygit2.Oid, pygit2.enums.FileMode], None],
+    debug: bool = False,
 ) -> typing.Union[
-    tuple[pygit2.Oid, pygit2.enums.FileMode], pygit2.Index
-]:  # returning the index means there was a conflict, tuple[Blob, filemode]
+    tuple[pygit2.Oid, pygit2.enums.FileMode], pygit2.Index, None
+]:  # returning the index means there was a conflict, tuple[Blob, filemode], None means that the file was deleted
     # deal with the easy ones first
-    if ours == theirs or theirs == ancestor:
+    if debug:
+        log(
+            f"[merge_blobs_3way] - ancestor: {(ancestor[0], ancestor[1]) if ancestor else '-'}"
+        )
+        log(f"[merge_blobs_3way] - ours: {(ours[0], ours[1]) if ours else '-'}")
+        log(f"[merge_blobs_3way] - theirs: {(theirs[0], theirs[1]) if theirs else '-'}")
+    if ours == theirs:
+        if debug:
+            log(
+                '[merge_blobs_3way] - there is no change between ours/theirs. Taking "ours".'
+            )
+        return ours
+    elif theirs == ancestor:
+        if debug:
+            log(
+                '[merge_blobs_3way] - there is no change between ancestor/theirs. Taking "ours".'
+            )
         return ours
     if ours == ancestor:
+        if debug:
+            log(
+                '[merge_blobs_3way] - there is no change between ancestor/ours. Taking "theirs".'
+            )
         return theirs
+
+    if debug:
+        if ancestor is None or theirs is None:
+            log(
+                "[merge_blobs_3way] - There is a tree conflict because either ancestor or theirs is missing "
+                "and the other item is different from ours"
+            )
+        else:
+            if ancestor[0] == theirs[0]:
+                log(
+                    "[merge_blobs_3way] - There is not difference in content between ancestor/theirs"
+                )
+            else:
+                log(
+                    f"[merge_blobs_3way] - Will apply this content change on OURS: {repo.get(ancestor[0]).diff(repo.get(theirs[0])).data.decode()}"
+                )
+            if ancestor[1] != theirs[1]:
+                log(
+                    f"[merge_blobs_3way] - Will apply the following change in file mode: {ancestor[1]} => {theirs[1]}"
+                )
 
     # FIXME Ugh... I hate creating trees just for this but I see no support for 3-way merges of blobs in pygit2 so....
     tree_builder_p1 = repo.TreeBuilder()
@@ -237,13 +312,21 @@ def merge_blobs_3way(
     )
 
     if merge_result.conflicts:
+        if debug:
+            log("[merge_blobs_3way] - there were conflicts in the 3-way merge")
         return merge_result
 
     result_index_item = merge_result["a"]
     if result_index_item is None:
+        if debug:
+            log("[merge_blobs_3way] - File is deleted as a result")
         return None
 
     # TODO Try to get the value of the mode in the resulting blob so that we do not have to deal with it separately
+    if debug:
+        log(
+            f"[merge_blobs_3way] - Got a successful merge. {result_index_item.id}, {result_index_item.mode}"
+        )
     return result_index_item.id, result_index_item.mode
 
 
@@ -303,114 +386,148 @@ class CommitMetadata:
 
 
 def merge_blobs(
-    commit_metadata: CommitMetadata,
-    path: str,
+    repo: pygit2.Repository,
     commit_blob: typing.Union[pygit2.Blob, None],
-    original_parent_blobs: list[typing.Union[pygit2.Blob, None]],
+    merge_base_blob: typing.Union[pygit2.Blob, None],
+    parent_blobs: list[typing.Union[pygit2.Blob, None]],
+    rebased_merge_base_blob: typing.Union[pygit2.Blob, None],
     rebased_parent_blobs: list[typing.Union[pygit2.Blob, None]],
+    debug: bool = False,
 ) -> typing.Union[
     tuple[pygit2.Oid, int], None, bool
 ]:  # None means a deleted Blob, False means there was a conflict, tuple[Blob, filemode]
     assert commit_blob is None or isinstance(commit_blob, pygit2.Blob)
-    assert len(original_parent_blobs) == len(rebased_parent_blobs)
+    assert len(parent_blobs) == len(rebased_parent_blobs)
     assert all(
-        (parent is None or isinstance(parent, pygit2.Blob))
-        for parent in original_parent_blobs
+        parent is None or isinstance(parent, pygit2.Blob) for parent in parent_blobs
     )
     assert all(
-        (parent is None or isinstance(parent, pygit2.Blob))
+        parent is None or isinstance(parent, pygit2.Blob)
         for parent in rebased_parent_blobs
     )
+    assert merge_base_blob is None or isinstance(merge_base_blob, pygit2.Blob)
+    assert rebased_merge_base_blob is None or isinstance(
+        rebased_merge_base_blob, pygit2.Blob
+    )
 
-    # we assume that if we are here, all the pairs of original_parent_blob/rebased_parent_blob are differing.
-    # Also, the easy single-parent cases where we can easily find a resulting object have already
-    # been taken care of. Here we are dealing with the _hard_ merges only.
+    if debug:
+        log("[merge_blobs] Original commit blob content:")
+        if commit_blob:
+            log(commit_blob.data.decode())
+            log(f"[merge_blobs_easy] Blob id: {commit_blob.id}")
+            log(f"[merge_blobs_easy] File Mode: {commit_blob.filemode}")
+        else:
+            log("[merge_blobs_easy] File does not exist in this commit")
 
-    if len(original_parent_blobs) == 1:
-        result = merge_blobs_3way(
-            commit_metadata.repo,
-            (
-                (original_parent_blobs[0].id, original_parent_blobs[0].filemode)
-                if original_parent_blobs[0]
+    current_result = (commit_blob.id, commit_blob.filemode) if commit_blob else None
+
+    # are the 2 bases (old/new) the same?
+    old_base = (
+        (merge_base_blob.id, merge_base_blob.filemode) if merge_base_blob else None
+    )
+    new_base = (
+        (rebased_merge_base_blob.id, rebased_merge_base_blob.filemode)
+        if rebased_merge_base_blob
+        else None
+    )
+
+    if old_base == new_base:
+        # we can apply the differences between the old/new merge bases
+        if debug:
+            log(f"Merge bases are the same ({old_base} => {new_base})")
+
+        # now we apply the changes introduced by each parent
+        if debug:
+            log("Introducing changes produced by each parent")
+        for parent_blob, rebased_parent_blob in zip(parent_blobs, rebased_parent_blobs):
+            parent = (parent_blob.id, parent_blob.filemode) if parent_blob else None
+            rebased_parent = (
+                (rebased_parent_blob.id, rebased_parent_blob.filemode)
+                if rebased_parent_blob
                 else None
-            ),
-            (commit_blob.id, commit_blob.filemode) if commit_blob else None,
-            (
-                (rebased_parent_blobs[0].id, rebased_parent_blobs[0].filemode)
-                if rebased_parent_blobs[0]
-                else None
-            ),
-        )
-        if result is None or isinstance(result, tuple):
-            return result
-
-        # last resort: checking against the common ancestor of the parent commits
-        if len(commit_metadata.commit.parents) > 1:
-            # the other parents are the same between original and rebased parents
-            # if the original_parent_blob is the same as in the merge_base of the parents of the original commit
-            # we can take the original commit object
-            merge_base = commit_metadata.merge_base
-            if merge_base is not None:
-                if path in merge_base.tree:
-                    ancestor_object = merge_base.tree[path]
-                else:
-                    ancestor_object = None
-                if objects_match(ancestor_object, original_parent_blobs[0]):
-                    # let's make sure that it did not change on the other side
-                    rebased_merge_base = commit_metadata.rebased_merge_base
-                    if rebased_merge_base is not None:
-                        if path in rebased_merge_base.tree:
-                            rebased_ancestor_object = rebased_merge_base.tree[path]
-                        else:
-                            rebased_ancestor_object = None
-                        if objects_match(
-                            rebased_ancestor_object, rebased_parent_blobs[0]
-                        ):
-                            return commit_blob.id, commit_blob.filemode
-
-        # if there is a conflict this way, it is not possible to solve it differently
-        return False
-
-    if (
-        commit_blob is not None
-        and all(parent is not None for parent in original_parent_blobs)
-        and all(parent is not None for parent in rebased_parent_blobs)
-    ):
-        # dealing with a multi-parent conflict
-        result_blob = (commit_blob.id, commit_blob.filemode)
-        for original_parent_blob, rebased_parent_blob in zip(
-            original_parent_blobs, rebased_parent_blobs
-        ):
-            # we do not want to have to deal with filemode changes at the moment
-            if (
-                original_parent_blob.filemode != commit_blob.filemode
-                or rebased_parent_blob.filemode != commit_blob.filemode
-            ):
-                result_blob = None
-                break
-            merge_result = merge_blobs_3way(
-                commit_metadata.repo,
-                (original_parent_blob.id, original_parent_blob.filemode),
-                result_blob,
-                (rebased_parent_blob.id, rebased_parent_blob.filemode),
             )
-            if isinstance(merge_result, pygit2.Index):
-                # there was a conflict, sorry but we can't continue
-                # and we do not have a resolution yet
-                result_blob = None
-                break
-            result_blob = merge_result  # take the blob as it is right now
-        if result_blob:
-            # we have a successful merge
-            return result_blob
+            if debug:
+                log("Applying changes between parents: {parent}, {rebased_parent}")
+            if parent == rebased_parent:
+                if debug:
+                    log(
+                        "Rebased parent is the same as the rebased parent. No change to apply."
+                    )
+                    continue
+            current_result = merge_blobs_3way(
+                repo, parent, current_result, rebased_parent, debug
+            )
+            if isinstance(current_result, pygit2.Index):
+                if debug:
+                    log("Could not apply change between parent and rebased parent")
+                return False
+            if debug:
+                log("Updated content: {current_result}")
+    else:
+        # we apply the differences between the old/new bases onto the original content
+        # then we apply the same change on the _old_ bases
+        # then we apply the differences between ths _updated_ bases and the new bases
+        if debug:
+            log(f"Merge bases are different ({old_base} => {new_base})")
+        current_result = merge_blobs_3way(
+            repo, old_base, current_result, new_base, debug
+        )
 
-    # for the time being, we will just say there was a conflict
-    return False
+        if isinstance(current_result, pygit2.Index):
+            if debug:
+                log(
+                    "Could not apply changes between old base and new base on the original commit content"
+                )
+            return False
+
+        # now we apply the changes introduced by each parent
+        if debug:
+            log("Applying changes introduced by each parent")
+        for parent_blob, rebased_parent_blob in zip(parent_blobs, rebased_parent_blobs):
+            parent = (parent_blob.id, parent_blob.filemode) if parent_blob else None
+            rebased_parent = (
+                (rebased_parent_blob.id, rebased_parent_blob.filemode)
+                if rebased_parent_blob
+                else None
+            )
+            if debug:
+                log("Applying changes between parents: {parent}, {rebased_parent}")
+            updated_parent = merge_blobs_3way(repo, old_base, parent, new_base, debug)
+            if isinstance(updated_parent, pygit2.Index):
+                if debug:
+                    log("Could not apply change between bases on the original parent")
+                return False
+            if updated_parent == rebased_parent:
+                if debug:
+                    log(
+                        "Updated parent is the same as the rebased parent. No change to apply."
+                    )
+                    continue
+            if debug:
+                log(
+                    "Applying change {updated_parent} => {rebased_parent} on top of current content ({current_result})"
+                )
+            current_result = merge_blobs_3way(
+                repo, updated_parent, current_result, rebased_parent, debug
+            )
+            if isinstance(current_result, pygit2.Index):
+                if debug:
+                    log(
+                        "Could not apply change between updated parent and rebased parent"
+                    )
+                return False
+            if debug:
+                log("Updated content: {current_result}")
+
+    if debug:
+        log("Rebase of merge was successful")
+    return current_result
 
 
 # TODO is it ok to only consider _differing_ parents? (trees, blobs)
 # I have a hunch this is way too optimistic.
 def merge_trees(
+    rebase_options: RebaseOptions,
     commit_metadata: CommitMetadata,
     commit_tree: typing.Union[
         pygit2.Tree, None
@@ -429,6 +546,7 @@ def merge_trees(
 ) -> typing.Union[
     pygit2.Oid, None, bool
 ]:  # None if the result is an empty/deleted tree, False if we have a tree conflict
+    log(f"merge trees using these paths: {paths}", rebase_options)
     assert commit_tree is None or isinstance(commit_tree, pygit2.Tree)
     assert len(orig_parent_trees) == len(rebased_parent_trees)
     assert all(
@@ -532,6 +650,7 @@ def merge_trees(
             )
             paths.append(path)
             recursive_result = merge_trees(
+                rebase_options,
                 commit_metadata,
                 commit_tree_item,
                 original_differing_parent_items,
@@ -567,12 +686,54 @@ def merge_trees(
             )
             paths.append(path)
             fullpath = "/".join(paths)
+            debug_file = rebase_options.debug and (
+                not rebase_options.debug_paths
+                or any(
+                    fullpath.startswith(debug_path)
+                    for debug_path in rebase_options.debug_paths
+                )
+            )
+
+            # parent blobs, we need them _all_
+            parent_blobs = []
+            rebased_parent_blobs = []
+            for parent in commit_metadata.commit.parents:
+                try:
+                    parent_blob = parent.tree[fullpath]
+                except KeyError:
+                    parent_blob = None
+                parent_blobs.append(parent_blob)
+            for parent in commit_metadata.rebased_parents:
+                try:
+                    parent_blob = parent.tree[fullpath]
+                except KeyError:
+                    parent_blob = None
+                rebased_parent_blobs.append(parent_blob)
+
+            # merge base blobs
+            try:
+                merge_base_blob = commit_metadata.merge_base.tree[fullpath]
+            except KeyError:
+                merge_base_blob = None
+            try:
+                rebased_merge_base_blob = commit_metadata.rebased_merge_base.tree[
+                    fullpath
+                ]
+            except KeyError:
+                rebased_merge_base_blob = None
+
+            if debug_file:
+                log(
+                    f"Will call merge_blobs_easy on commit {commit_metadata.commit.id} - {fullpath}"
+                )
             blob_result = merge_blobs(
-                commit_metadata,
-                fullpath,
+                commit_metadata.repo,
                 commit_tree_item,
-                original_differing_parent_items,
-                rebased_differing_parent_items,
+                merge_base_blob,
+                parent_blobs,
+                rebased_merge_base_blob,
+                rebased_parent_blobs,
+                debug_file,
             )
             del paths[-1]
             if blob_result is None or isinstance(blob_result, tuple):
@@ -606,26 +767,6 @@ def merge_trees(
     if len(tree_builder):
         return tree_builder.write()
     return None
-
-
-class RebaseOptions:
-    upstream: pygit2.Commit = None
-    source: pygit2.Commit
-    onto: typing.Union[pygit2.Commit, None]
-    progress_hook: Callable = (
-        None  # hook that will be called when we have figured out what happened with a commit
-    )
-    force_rebase: bool = False
-
-    def __init__(
-        self,
-        upstream: pygit2.Commit,
-        source: pygit2.Commit,
-        onto: typing.Union[pygit2.Commit, None] = None,
-    ):
-        self.upstream = upstream
-        self.source = source
-        self.onto = onto
 
 
 def rebase(
@@ -700,12 +841,15 @@ def rebase(
 
         commit_metadata = CommitMetadata(repo, rebased_commit, rebased_parents)
 
+        log("Will make call to merge_trees from the rebase method", rebase_options)
         result_tree = merge_trees(
+            rebase_options,
             commit_metadata,
             rebased_commit.tree,
             orig_parent_trees,
             rebased_parent_trees,
             conflicts,
+            [],  # this is behaving funny when running all tests with pytest if it is not set
         )
         if conflicts:
             # There were conflicts

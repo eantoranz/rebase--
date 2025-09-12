@@ -195,6 +195,7 @@ def test_conflicting_blob_merge_commit_change_upstream(tmp_path):
 
     conflicts = []
     rebase_options = RebaseOptions(B, main)  # onto is B
+    rebase_options.debug = True
     result = rebase(repo, rebase_options, conflicts)
     assert isinstance(result, pygit2.Commit)
     assert B.id != result.id
