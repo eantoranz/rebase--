@@ -32,7 +32,7 @@ fulfill all of those requirements, it makes it cumbersome to work on a few scena
   of code that the skipped merge commits dealt with.
 - In cases when you run `git-rebase` using `--rebase-merges`, if there is a conflict when
   merging commits coming out of the rebase, `git-rebase` does **not** consider if the conflicts
-  that popped up were already resolved in the original merge commit been rebased. It will stop in
+  that popped up were already resolved in the original merge commit being rebased. It will stop in
   its tracks and let you figure out how to deal with it to continue with the rebase.
 
 `rebase--` is an attempt at overcoming at least some of those problems:
