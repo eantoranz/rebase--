@@ -28,7 +28,7 @@ fulfill all of those requirements, it makes it cumbersome to work on a few scena
   this becomes a problem when there were changes introduced in the original merge commits that
   are being rebased (normally that would mean there was a conflict but it might also be a change
   introduced on a non-conflict). As the rebase process goes on, those missing changes can start
-  to produce conflicts with later commits being rebased that deal with the section
+  to produce conflicts with later commits being rebased that deal with sections
   of code that the skipped merge commits dealt with.
 - In cases when you run `git-rebase` using `--rebase-merges`, if there is a conflict when
   merging commits coming out of the rebase, `git-rebase` does **not** consider if the conflicts
@@ -49,12 +49,12 @@ fulfill all of those requirements, it makes it cumbersome to work on a few scena
 
 
 # features
-- rebase history, including merges.
-- avoid conflicts **if possible** based on what the commits being rebased did originally.
-- work without moving the working tree.
+- Rebases history, including merges.
+- Avoids conflicts **if possible** based on what the commits being rebased did originally.
+- Works without moving the working tree.
 - Allows rebasing (and moving) a local reference without having to move the working tree.
-- **Optionally**, move to the final commit of the rebase (with `--for-real/-4r`).
-- **Optionally**, move local references without moving the working tree / `HEAD` (with `--for-real/-4r`
+- **Optionally**, moves to the final commit of the rebase (with `--for-real/-4r`).
+- **Optionally**, moves local references without moving the working tree / `HEAD` (with `--for-real/-4r`
   together with `--stay`).
 - **Optionally**, can switch to a `detached HEAD` (with `--detach`).
 
@@ -75,7 +75,7 @@ fulfill all of those requirements, it makes it cumbersome to work on a few scena
 
 **Important**: Keep in mind that by default, unlike `git-rebase`, it does **not** mess up
 with the working tree or the references involved in the rebase. It will only report the final
-**commit id** that comes out of the rebase process, if it succeeds. You can use that **commit id**
+**commit id** that comes out of the rebase process, **if it succeeds**. You can use that **commit id**
 at will afterwards. If you would like `rebase--` to move your working tree and local reference involved
 in the rebase, you need to use the option `--for-real` (or `-4r`, for short).
 
@@ -117,8 +117,8 @@ rebase succeeds (that is because the options `-4r` and `--stay` were used in the
 ```
 rebase-- --detach -4r <upstream> <some-branch>
 ```
-In this case `rebase--` will run the rebase and, if it succeeds, it will checkout the commit id
-product of the rebase, which will make you start working on a `detached HEAD`. The reference where
+In this case `rebase--` will run the rebase and, if it succeeds, it will checkout the final commit
+coming out of the rebase, which will make you start working on a `detached HEAD`. The reference where
 `HEAD` was before is not moved.
 
 
